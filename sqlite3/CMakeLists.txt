@@ -1,3 +1,2 @@
-ADD_LIBRARY(osquery_sqlite sqlite3.c)
-TARGET_LINK_LIBRARIES(osquery_sqlite dl)
-TARGET_LINK_LIBRARIES(osquery_sqlite pthread)
+ADD_LIBRARY(osquery_sqlite OBJECT sqlite3.c)
+SET_TARGET_PROPERTIES(osquery_sqlite PROPERTIES COMPILE_FLAGS ${USER_COMPILE_FLAGS})
