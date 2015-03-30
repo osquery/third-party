@@ -897,7 +897,7 @@ bool LogFileObject::CreateLogfile(const string& time_pid_string) {
                            time_pid_string;
   const char* filename = string_filename.c_str();
   // osquery Issue #907, multiple instances writing to the same file.
-  int fd = open(filename, O_WRONLY | O_EXCL, 0600);
+  int fd = open(filename, O_WRONLY | O_CREAT, 0600);
   if (fd == -1) return false;
 #ifdef HAVE_FCNTL
   // Mark the file close-on-exec. We don't really care if this fails
