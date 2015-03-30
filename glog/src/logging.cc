@@ -896,7 +896,8 @@ bool LogFileObject::CreateLogfile(const string& time_pid_string) {
   string string_filename = base_filename_+filename_extension_+
                            time_pid_string;
   const char* filename = string_filename.c_str();
-  int fd = open(filename, O_WRONLY | O_CREAT | O_EXCL, 0664);
+  // osquery Issue #907, multiple instances writing to the same file.
+  int fd = open(filename, O_WRONLY | O_EXCL, 0600);
   if (fd == -1) return false;
 #ifdef HAVE_FCNTL
   // Mark the file close-on-exec. We don't really care if this fails
@@ -986,13 +987,14 @@ void LogFileObject::Write(bool force_flush,
     time_pid_stream.fill('0');
     time_pid_stream << 1900+tm_time.tm_year
                     << setw(2) << 1+tm_time.tm_mon
-                    << setw(2) << tm_time.tm_mday
-                    << '-'
-                    << setw(2) << tm_time.tm_hour
-                    << setw(2) << tm_time.tm_min
-                    << setw(2) << tm_time.tm_sec
-                    << '.'
-                    << GetMainThreadPid();
+                    << setw(2) << tm_time.tm_mday;
+    // osquery Issue [#907] use YYYYMMDD as the most specific log file name.
+    //                << '-'
+    //                << setw(2) << tm_time.tm_hour
+    //                << setw(2) << tm_time.tm_min
+    //                << setw(2) << tm_time.tm_sec
+    //                << '.'
+    //                << GetMainThreadPid();
     const string& time_pid_string = time_pid_stream.str();
 
     if (base_filename_selected_) {
@@ -1633,7 +1635,8 @@ string LogSink::ToString(LogSeverity severity, const char* file, int line,
          << setw(2) << tm_time->tm_sec << '.'
          << setw(6) << usecs
          << ' '
-         << setfill(' ') << setw(5) << GetTID() << setfill('0')
+         << setfill(' ') << setw(5) << getpid()
+         << ":" << GetTID() << setfill('0')
          << ' '
          << file << ':' << line << "] ";
 
