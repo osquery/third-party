@@ -26,8 +26,16 @@ boost::network::http::impl::ssl_delegate::ssl_delegate(
 void boost::network::http::impl::ssl_delegate::connect(
     asio::ip::tcp::endpoint &endpoint, std::string host,
     function<void(system::error_code const &)> handler) {
+#if defined(SSL_TXT_TLSV1_2)
   context_.reset(
-      new asio::ssl::context(service_, asio::ssl::context::sslv23_client));
+      new asio::ssl::context(service_, asio::ssl::context::tlsv12_client));
+#elif defined(SSL_TXT_TLSV1_1)
+  context_.reset(
+      new asio::ssl::context(service_, asio::ssl::context::tlsv11_client));
+#else
+  context_.reset(
+      new asio::ssl::context(service_, asio::ssl::context::tlsv1_client));
+#endif
   if (certificate_filename_ || verify_path_) {
     context_->set_verify_mode(asio::ssl::context::verify_peer);
     if (certificate_filename_)

@@ -128,6 +128,13 @@ struct client_options {
 
   int timeout() const { return timeout_; }
 
+  // begin osquery-testing custom code
+  client_options& always_verify_peer(bool v) {
+    always_verify_peer_ = v;
+    return *this;
+  }
+  // end osquery-testing custom code
+
  private:
   bool cache_resolved_;
   bool follow_redirects_;
