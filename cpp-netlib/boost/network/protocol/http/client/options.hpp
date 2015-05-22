@@ -27,6 +27,8 @@ struct client_options {
         openssl_verify_path_(),
         openssl_certificate_file_(),
         openssl_private_key_file_(),
+        openssl_ciphers_(),
+        openssl_options_(0),
         io_service_(),
         always_verify_peer_(false),
         timeout_(0) {}
@@ -38,6 +40,8 @@ struct client_options {
         openssl_verify_path_(other.openssl_verify_path_),
         openssl_certificate_file_(other.openssl_certificate_file_),
         openssl_private_key_file_(other.openssl_private_key_file_),
+        openssl_ciphers_(other.openssl_ciphers_),
+        openssl_options_(other.openssl_options_),
         io_service_(other.io_service_),
         always_verify_peer_(other.always_verify_peer_),
         timeout_(other.timeout_) {}
@@ -55,6 +59,8 @@ struct client_options {
     swap(openssl_verify_path_, other.openssl_verify_path_);
     swap(openssl_certificate_file_, other.openssl_certificate_file_);
     swap(openssl_private_key_file_, other.openssl_private_key_file_);
+    swap(openssl_ciphers_, other.openssl_ciphers_);
+    swap(openssl_options_, other.openssl_options_);
     swap(io_service_, other.io_service_);
     swap(always_verify_peer_, other.always_verify_peer_);
     swap(timeout_, other.timeout_);
@@ -90,8 +96,23 @@ struct client_options {
     return *this;
   }
 
+  client_options& openssl_ciphers(string_type const& v) {
+    openssl_ciphers_ = v;
+    return *this;
+  }
+
+  client_options& openssl_options(long o) {
+    openssl_options_ = o;
+    return *this;
+  }
+
   client_options& io_service(boost::shared_ptr<boost::asio::io_service> v) {
     io_service_ = v;
+    return *this;
+  }
+
+  client_options& always_verify_peer(bool v) {
+    always_verify_peer_ = v;
     return *this;
   }
 
@@ -120,6 +141,12 @@ struct client_options {
     return openssl_private_key_file_;
   }
 
+  boost::optional<string_type> openssl_ciphers() const {
+    return openssl_ciphers_;
+  }
+
+  long openssl_options() const { return openssl_options_; }
+
   boost::shared_ptr<boost::asio::io_service> io_service() const {
     return io_service_;
   }
@@ -128,13 +155,6 @@ struct client_options {
 
   int timeout() const { return timeout_; }
 
-  // begin osquery-testing custom code
-  client_options& always_verify_peer(bool v) {
-    always_verify_peer_ = v;
-    return *this;
-  }
-  // end osquery-testing custom code
-
  private:
   bool cache_resolved_;
   bool follow_redirects_;
@@ -142,6 +162,8 @@ struct client_options {
   boost::optional<string_type> openssl_verify_path_;
   boost::optional<string_type> openssl_certificate_file_;
   boost::optional<string_type> openssl_private_key_file_;
+  boost::optional<string_type> openssl_ciphers_;
+  long openssl_options_;
   boost::shared_ptr<boost::asio::io_service> io_service_;
   bool always_verify_peer_;
   int timeout_;
