@@ -7,12 +7,13 @@ option(BENCHMARK_ENABLE_LTO "Enable link time optimisation of the benchmark libr
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # Read the git tags to determine the project version
-include(GetGitVersion)
-get_git_version(GIT_VERSION)
+#include(GetGitVersion)
+#get_git_version(GIT_VERSION)
 
 # Tell the user what versions we are using
+set(GIT_VERSION "v0.0.0")
 string(REGEX MATCH "[0-9]+\\.[0-9]+\\.[0-9]+" VERSION ${GIT_VERSION})
-message("-- Version: ${VERSION}")
+#message("-- Version: ${VERSION}")
 
 # The version of the libraries
 set(GENERIC_LIB_VERSION ${VERSION})
