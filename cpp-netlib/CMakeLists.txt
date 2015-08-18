@@ -61,7 +61,7 @@ if (OPENSSL_FOUND)
 endif()
 
 if (${CMAKE_CXX_COMPILER_ID} MATCHES GNU)
-  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -std=c++11")
 elseif (${CMAKE_CXX_COMPILER_ID} MATCHES Clang)
   if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     # We want to link in C++11 mode if we're using Clang and on OS X.

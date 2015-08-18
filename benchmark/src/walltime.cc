@@ -65,9 +65,15 @@ public:
   static WallTimeImp& GetWallTimeImp() {
     static WallTimeImp imp;
 #if __cplusplus >= 201103L
-    static_assert(std::is_trivially_destructible<WallTimeImp>::value,
-                  "WallTimeImp must be trivially destructible to prevent "
-                  "issues with static destruction");
+#if defined(__GNUC__) && (__GNUC__*100 + __GNUC__MINOR__ < 408)
+	static_assert(std::has_trivial_destructor<WallTimeImp>::value,
+	              "WallTimeImp must be trivially destructible to prevent "
+	              "issues with static destruction");
+#else 
+	static_assert(std::is_trivially_destructible<WallTimeImp>::value,
+	              "WallTimeImp must be trivially destructible to prevent "
+				  "issues with static destruction");
+#endif 				  
 #endif
     return imp;
   }
