@@ -36,16 +36,3 @@ endif()
 
 # Expose public API
 target_include_directories(benchmark PUBLIC ${PROJECT_SOURCE_DIR}/include)
-
-# Install target (will install the library to specified CMAKE_INSTALL_PREFIX variable)
-install(
-  TARGETS benchmark
-  ARCHIVE DESTINATION lib
-  LIBRARY DESTINATION lib
-  RUNTIME DESTINATION bin
-  COMPONENT library)
-
-install(
-  DIRECTORY "${PROJECT_SOURCE_DIR}/include/benchmark"
-  DESTINATION include
-  FILES_MATCHING PATTERN "*.*h")
