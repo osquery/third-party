@@ -32,6 +32,13 @@
 #include "log.h"
 #include "sysinfo.h"
 
+#ifndef _LIBCPP_TYPE_TRAITS
+namespace std {
+  template<typename> struct has_trivial_destructor;
+  template<typename> struct is_trivially_destructible;
+}
+#endif
+
 namespace benchmark {
 namespace walltime {
 
@@ -57,6 +64,43 @@ struct ChooseClockType {
 #endif
 };
 
+#ifdef _LIBCPP_TYPE_TRAITS
+
+// using libc++, always alias std::is_trivially_destructible<T>
+using std::is_trivially_destructible;
+
+#else
+
+// using libstdc++, using an SFINAE-based hack to detect which trait to alias
+namespace internal {
+  template<typename T>
+  struct have_cxx11_trait_helper {
+  private:
+    template<typename U, bool = std::is_trivially_destructible<U>::type::value>
+    static std::true_type test(int);
+
+    template<typename U, bool = std::has_trivial_destructor<U>::type::value>
+    static std::false_type test(...);
+
+  public:
+    typedef decltype(test<T>(0)) type;
+  };
+
+  template<typename T>
+  struct have_cxx11_trait : have_cxx11_trait_helper<T>::type {
+  };
+
+  template<typename T>
+  using is_trivially_destructible =
+    typename std::conditional<have_cxx11_trait<T>::value,
+                              std::is_trivially_destructible<T>,
+                              std::has_trivial_destructor<T>>::type;
+}
+
+using internal::is_trivially_destructible;
+
+#endif // libc++ or libstdc++
+
 class WallTimeImp
 {
 public:
@@ -65,15 +109,9 @@ public:
   static WallTimeImp& GetWallTimeImp() {
     static WallTimeImp imp;
 #if __cplusplus >= 201103L
-#if !__has_feature(is_trivially_assignable)
-	static_assert(std::has_trivial_destructor<WallTimeImp>::value,
-	              "WallTimeImp must be trivially destructible to prevent "
-	              "issues with static destruction");
-#else 
-	static_assert(std::is_trivially_destructible<WallTimeImp>::value,
-	              "WallTimeImp must be trivially destructible to prevent "
-				  "issues with static destruction");
-#endif 				  
+    static_assert(is_trivially_destructible<WallTimeImp>::value,
+                  "WallTimeImp must be trivially destructible to prevent "
+                  "issues with static destruction");
 #endif
     return imp;
   }
