@@ -161,6 +161,8 @@ static const char* DefaultLogDir() {
   return "";
 }
 
+GLOG_DEFINE_int32(logfile_mode, 0600, "Log file mode/permissions.");
+
 GLOG_DEFINE_string(log_dir, DefaultLogDir(),
                    "If specified, logfiles are written into this directory instead "
                    "of the default logging directory.");
@@ -897,7 +899,7 @@ bool LogFileObject::CreateLogfile(const string& time_pid_string) {
                            time_pid_string;
   const char* filename = string_filename.c_str();
   // osquery Issue #907, multiple instances writing to the same file.
-  int fd = open(filename, O_WRONLY | O_CREAT, 0600);
+  int fd = open(filename, O_WRONLY | O_CREAT, FLAGS_logfile_mode);
   if (fd == -1) return false;
 #ifdef HAVE_FCNTL
   // Mark the file close-on-exec. We don't really care if this fails
