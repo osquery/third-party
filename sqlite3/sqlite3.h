@@ -111,9 +111,9 @@ extern "C" {
 ** [sqlite3_libversion_number()], [sqlite3_sourceid()],
 ** [sqlite_version()] and [sqlite_source_id()].
 */
-#define SQLITE_VERSION        "3.10.0"
-#define SQLITE_VERSION_NUMBER 3010000
-#define SQLITE_SOURCE_ID      "2015-11-30 19:15:25 3b155855f3d5918f1df7dbd19783215b3da0ca3e"
+#define SQLITE_VERSION        "3.11.0"
+#define SQLITE_VERSION_NUMBER 3011000
+#define SQLITE_SOURCE_ID      "2016-02-15 17:29:24 3d862f207e3adc00f78066799ac5a8c282430a5f"
 
 /*
 ** CAPI3REF: Run-Time Library Version Numbers
@@ -347,7 +347,7 @@ typedef int (*sqlite3_callback)(void*,int,char**, char**);
 ** from [sqlite3_malloc()] and passed back through the 5th parameter.
 ** To avoid memory leaks, the application should invoke [sqlite3_free()]
 ** on error message strings returned through the 5th parameter of
-** of sqlite3_exec() after the error message string is no longer needed.
+** sqlite3_exec() after the error message string is no longer needed.
 ** ^If the 5th parameter to sqlite3_exec() is not NULL and no errors
 ** occur, then sqlite3_exec() sets the pointer in its 5th parameter to
 ** NULL before returning.
@@ -794,8 +794,13 @@ struct sqlite3_io_methods {
 ** <li>[[SQLITE_FCNTL_FILE_POINTER]]
 ** The [SQLITE_FCNTL_FILE_POINTER] opcode is used to obtain a pointer
 ** to the [sqlite3_file] object associated with a particular database
-** connection.  See the [sqlite3_file_control()] documentation for
-** additional information.
+** connection.  See also [SQLITE_FCNTL_JOURNAL_POINTER].
+**
+** <li>[[SQLITE_FCNTL_JOURNAL_POINTER]]
+** The [SQLITE_FCNTL_JOURNAL_POINTER] opcode is used to obtain a pointer
+** to the [sqlite3_file] object associated with the journal file (either
+** the [rollback journal] or the [write-ahead log]) for a particular database
+** connection.  See also [SQLITE_FCNTL_FILE_POINTER].
 **
 ** <li>[[SQLITE_FCNTL_SYNC_OMITTED]]
 ** No longer in use.
@@ -887,7 +892,7 @@ struct sqlite3_io_methods {
 ** [VFSes] currently in use.  ^(The argument X in
 ** sqlite3_file_control(db,SQLITE_FCNTL_VFS_POINTER,X) must be
 ** of type "[sqlite3_vfs] **".  This opcodes will set *X
-** to a pointer to the top-level VFS.^)
+** to a pointer to the top-level VFS.)^
 ** ^When there are multiple VFS shims in the stack, this opcode finds the
 ** upper-most shim only.
 **
@@ -1010,6 +1015,7 @@ struct sqlite3_io_methods {
 #define SQLITE_FCNTL_ZIPVFS                 25
 #define SQLITE_FCNTL_RBU                    26
 #define SQLITE_FCNTL_VFS_POINTER            27
+#define SQLITE_FCNTL_JOURNAL_POINTER        28
 
 /* deprecated names */
 #define SQLITE_GET_LOCKPROXYFILE      SQLITE_FCNTL_GET_LOCKPROXYFILE
@@ -4405,8 +4411,8 @@ SQLITE_API unsigned int SQLITE_STDCALL sqlite3_value_subtype(sqlite3_value*);
 ** previously obtained from [sqlite3_value_dup()].  ^If V is a NULL pointer
 ** then sqlite3_value_free(V) is a harmless no-op.
 */
-SQLITE_API SQLITE_EXPERIMENTAL sqlite3_value *SQLITE_STDCALL sqlite3_value_dup(const sqlite3_value*);
-SQLITE_API SQLITE_EXPERIMENTAL void SQLITE_STDCALL sqlite3_value_free(sqlite3_value*);
+SQLITE_API sqlite3_value *SQLITE_STDCALL sqlite3_value_dup(const sqlite3_value*);
+SQLITE_API void SQLITE_STDCALL sqlite3_value_free(sqlite3_value*);
 
 /*
 ** CAPI3REF: Obtain Aggregate Function Context
@@ -5691,7 +5697,7 @@ struct sqlite3_index_info {
   /* Inputs */
   int nConstraint;           /* Number of entries in aConstraint */
   struct sqlite3_index_constraint {
-     int iColumn;              /* Column on left-hand side of constraint */
+     int iColumn;              /* Column constrained.  -1 for ROWID */
      unsigned char op;         /* Constraint operator */
      unsigned char usable;     /* True if this constraint is usable */
      int iTermOffset;          /* Used internally - xBestIndex should ignore */
@@ -7851,32 +7857,126 @@ SQLITE_API void SQLITE_STDCALL sqlite3_stmt_scanstatus_reset(sqlite3_stmt*);
 /*
 ** CAPI3REF: Flush caches to disk mid-transaction
 **
-** If a write-transaction is open when this function is called, any dirty
+** ^If a write-transaction is open on [database connection] D when the
+** [sqlite3_db_cacheflush(D)] interface invoked, any dirty
 ** pages in the pager-cache that are not currently in use are written out 
 ** to disk. A dirty page may be in use if a database cursor created by an
 ** active SQL statement is reading from it, or if it is page 1 of a database
-** file (page 1 is always "in use"). Dirty pages are flushed for all
-** databases - "main", "temp" and any attached databases.
+** file (page 1 is always "in use").  ^The [sqlite3_db_cacheflush(D)]
+** interface flushes caches for all schemas - "main", "temp", and
+** any [attached] databases.
 **
-** If this function needs to obtain extra database locks before dirty pages 
-** can be flushed to disk, it does so. If said locks cannot be obtained 
+** ^If this function needs to obtain extra database locks before dirty pages 
+** can be flushed to disk, it does so. ^If those locks cannot be obtained 
 ** immediately and there is a busy-handler callback configured, it is invoked
-** in the usual manner. If the required lock still cannot be obtained, then
+** in the usual manner. ^If the required lock still cannot be obtained, then
 ** the database is skipped and an attempt made to flush any dirty pages
-** belonging to the next (if any) database. If any databases are skipped
+** belonging to the next (if any) database. ^If any databases are skipped
 ** because locks cannot be obtained, but no other error occurs, this
 ** function returns SQLITE_BUSY.
 **
-** If any other error occurs while flushing dirty pages to disk (for
+** ^If any other error occurs while flushing dirty pages to disk (for
 ** example an IO error or out-of-memory condition), then processing is
-** abandoned and an SQLite error code returned to the caller immediately.
+** abandoned and an SQLite [error code] is returned to the caller immediately.
 **
-** Otherwise, if no error occurs, SQLITE_OK is returned.
+** ^Otherwise, if no error occurs, [sqlite3_db_cacheflush()] returns SQLITE_OK.
 **
-** This function does not set the database handle error code or message
-** returned by the sqlite3_errcode() and sqlite3_errmsg() functions.
+** ^This function does not set the database handle error code or message
+** returned by the [sqlite3_errcode()] and [sqlite3_errmsg()] functions.
 */
 SQLITE_API int SQLITE_STDCALL sqlite3_db_cacheflush(sqlite3*);
+
+/*
+** CAPI3REF: Database Snapshot
+** KEYWORDS: {snapshot}
+** EXPERIMENTAL
+**
+** An instance of the snapshot object records the state of a [WAL mode]
+** database for some specific point in history.
+**
+** In [WAL mode], multiple [database connections] that are open on the
+** same database file can each be reading a different historical version
+** of the database file.  When a [database connection] begins a read
+** transaction, that connection sees an unchanging copy of the database
+** as it existed for the point in time when the transaction first started.
+** Subsequent changes to the database from other connections are not seen
+** by the reader until a new read transaction is started.
+**
+** The sqlite3_snapshot object records state information about an historical
+** version of the database file so that it is possible to later open a new read
+** transaction that sees that historical version of the database rather than
+** the most recent version.
+**
+** The constructor for this object is [sqlite3_snapshot_get()].  The
+** [sqlite3_snapshot_open()] method causes a fresh read transaction to refer
+** to an historical snapshot (if possible).  The destructor for 
+** sqlite3_snapshot objects is [sqlite3_snapshot_free()].
+*/
+typedef struct sqlite3_snapshot sqlite3_snapshot;
+
+/*
+** CAPI3REF: Record A Database Snapshot
+** EXPERIMENTAL
+**
+** ^The [sqlite3_snapshot_get(D,S,P)] interface attempts to make a
+** new [sqlite3_snapshot] object that records the current state of
+** schema S in database connection D.  ^On success, the
+** [sqlite3_snapshot_get(D,S,P)] interface writes a pointer to the newly
+** created [sqlite3_snapshot] object into *P and returns SQLITE_OK.
+** ^If schema S of [database connection] D is not a [WAL mode] database
+** that is in a read transaction, then [sqlite3_snapshot_get(D,S,P)]
+** leaves the *P value unchanged and returns an appropriate [error code].
+**
+** The [sqlite3_snapshot] object returned from a successful call to
+** [sqlite3_snapshot_get()] must be freed using [sqlite3_snapshot_free()]
+** to avoid a memory leak.
+**
+** The [sqlite3_snapshot_get()] interface is only available when the
+** SQLITE_ENABLE_SNAPSHOT compile-time option is used.
+*/
+SQLITE_API SQLITE_EXPERIMENTAL int SQLITE_STDCALL sqlite3_snapshot_get(
+  sqlite3 *db,
+  const char *zSchema,
+  sqlite3_snapshot **ppSnapshot
+);
+
+/*
+** CAPI3REF: Start a read transaction on an historical snapshot
+** EXPERIMENTAL
+**
+** ^The [sqlite3_snapshot_open(D,S,P)] interface attempts to move the
+** read transaction that is currently open on schema S of
+** [database connection] D so that it refers to historical [snapshot] P.
+** ^The [sqlite3_snapshot_open()] interface returns SQLITE_OK on success
+** or an appropriate [error code] if it fails.
+**
+** ^In order to succeed, a call to [sqlite3_snapshot_open(D,S,P)] must be
+** the first operation, apart from other sqlite3_snapshot_open() calls,
+** following the [BEGIN] that starts a new read transaction.
+** ^A [snapshot] will fail to open if it has been overwritten by a 
+** [checkpoint].  
+**
+** The [sqlite3_snapshot_open()] interface is only available when the
+** SQLITE_ENABLE_SNAPSHOT compile-time option is used.
+*/
+SQLITE_API SQLITE_EXPERIMENTAL int SQLITE_STDCALL sqlite3_snapshot_open(
+  sqlite3 *db,
+  const char *zSchema,
+  sqlite3_snapshot *pSnapshot
+);
+
+/*
+** CAPI3REF: Destroy a snapshot
+** EXPERIMENTAL
+**
+** ^The [sqlite3_snapshot_free(P)] interface destroys [sqlite3_snapshot] P.
+** The application must eventually free every [sqlite3_snapshot] object
+** using this routine to avoid a memory leak.
+**
+** The [sqlite3_snapshot_free()] interface is only available when the
+** SQLITE_ENABLE_SNAPSHOT compile-time option is used.
+*/
+SQLITE_API SQLITE_EXPERIMENTAL void SQLITE_STDCALL sqlite3_snapshot_free(sqlite3_snapshot*);
 
 /*
 ** Undo the hack that converts floating point types to integer for
@@ -8093,6 +8193,9 @@ struct Fts5PhraseIter {
 **   an OOM condition or IO error), an appropriate SQLite error code is 
 **   returned.
 **
+**   This function may be quite inefficient if used with an FTS5 table
+**   created with the "columnsize=0" option.
+**
 ** xColumnText:
 **   This function attempts to retrieve the text of column iCol of the
 **   current document. If successful, (*pz) is set to point to a buffer
@@ -8113,14 +8216,28 @@ struct Fts5PhraseIter {
 **   the query within the current row. Return SQLITE_OK if successful, or
 **   an error code (i.e. SQLITE_NOMEM) if an error occurs.
 **
+**   This API can be quite slow if used with an FTS5 table created with the
+**   "detail=none" or "detail=column" option. If the FTS5 table is created 
+**   with either "detail=none" or "detail=column" and "content=" option 
+**   (i.e. if it is a contentless table), then this API always returns 0.
+**
 ** xInst:
 **   Query for the details of phrase match iIdx within the current row.
 **   Phrase matches are numbered starting from zero, so the iIdx argument
 **   should be greater than or equal to zero and smaller than the value
 **   output by xInstCount().
 **
+**   Usually, output parameter *piPhrase is set to the phrase number, *piCol
+**   to the column in which it occurs and *piOff the token offset of the
+**   first token of the phrase. The exception is if the table was created
+**   with the offsets=0 option specified. In this case *piOff is always
+**   set to -1.
+**
 **   Returns SQLITE_OK if successful, or an error code (i.e. SQLITE_NOMEM) 
 **   if an error occurs.
+**
+**   This API can be quite slow if used with an FTS5 table created with the
+**   "detail=none" or "detail=column" option. 
 **
 ** xRowid:
 **   Returns the rowid of the current row.
@@ -8205,7 +8322,7 @@ struct Fts5PhraseIter {
 **       Fts5PhraseIter iter;
 **       int iCol, iOff;
 **       for(pApi->xPhraseFirst(pFts, iPhrase, &iter, &iCol, &iOff);
-**           iOff>=0;
+**           iCol>=0;
 **           pApi->xPhraseNext(pFts, &iter, &iCol, &iOff)
 **       ){
 **         // An instance of phrase iPhrase at offset iOff of column iCol
@@ -8213,13 +8330,51 @@ struct Fts5PhraseIter {
 **
 **   The Fts5PhraseIter structure is defined above. Applications should not
 **   modify this structure directly - it should only be used as shown above
-**   with the xPhraseFirst() and xPhraseNext() API methods.
+**   with the xPhraseFirst() and xPhraseNext() API methods (and by
+**   xPhraseFirstColumn() and xPhraseNextColumn() as illustrated below).
+**
+**   This API can be quite slow if used with an FTS5 table created with the
+**   "detail=none" or "detail=column" option. If the FTS5 table is created 
+**   with either "detail=none" or "detail=column" and "content=" option 
+**   (i.e. if it is a contentless table), then this API always iterates
+**   through an empty set (all calls to xPhraseFirst() set iCol to -1).
 **
 ** xPhraseNext()
 **   See xPhraseFirst above.
+**
+** xPhraseFirstColumn()
+**   This function and xPhraseNextColumn() are similar to the xPhraseFirst()
+**   and xPhraseNext() APIs described above. The difference is that instead
+**   of iterating through all instances of a phrase in the current row, these
+**   APIs are used to iterate through the set of columns in the current row
+**   that contain one or more instances of a specified phrase. For example:
+**
+**       Fts5PhraseIter iter;
+**       int iCol;
+**       for(pApi->xPhraseFirstColumn(pFts, iPhrase, &iter, &iCol);
+**           iCol>=0;
+**           pApi->xPhraseNextColumn(pFts, &iter, &iCol)
+**       ){
+**         // Column iCol contains at least one instance of phrase iPhrase
+**       }
+**
+**   This API can be quite slow if used with an FTS5 table created with the
+**   "detail=none" option. If the FTS5 table is created with either 
+**   "detail=none" "content=" option (i.e. if it is a contentless table), 
+**   then this API always iterates through an empty set (all calls to 
+**   xPhraseFirstColumn() set iCol to -1).
+**
+**   The information accessed using this API and its companion
+**   xPhraseFirstColumn() may also be obtained using xPhraseFirst/xPhraseNext
+**   (or xInst/xInstCount). The chief advantage of this API is that it is
+**   significantly more efficient than those alternatives when used with
+**   "detail=column" tables.  
+**
+** xPhraseNextColumn()
+**   See xPhraseFirstColumn above.
 */
 struct Fts5ExtensionApi {
-  int iVersion;                   /* Currently always set to 1 */
+  int iVersion;                   /* Currently always set to 3 */
 
   void *(*xUserData)(Fts5Context*);
 
@@ -8249,8 +8404,11 @@ struct Fts5ExtensionApi {
   int (*xSetAuxdata)(Fts5Context*, void *pAux, void(*xDelete)(void*));
   void *(*xGetAuxdata)(Fts5Context*, int bClear);
 
-  void (*xPhraseFirst)(Fts5Context*, int iPhrase, Fts5PhraseIter*, int*, int*);
+  int (*xPhraseFirst)(Fts5Context*, int iPhrase, Fts5PhraseIter*, int*, int*);
   void (*xPhraseNext)(Fts5Context*, Fts5PhraseIter*, int *piCol, int *piOff);
+
+  int (*xPhraseFirstColumn)(Fts5Context*, int iPhrase, Fts5PhraseIter*, int*);
+  void (*xPhraseNextColumn)(Fts5Context*, Fts5PhraseIter*, int *piCol);
 };
 
 /* 
