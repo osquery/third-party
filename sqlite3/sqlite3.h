@@ -111,9 +111,9 @@ extern "C" {
 ** [sqlite3_libversion_number()], [sqlite3_sourceid()],
 ** [sqlite_version()] and [sqlite_source_id()].
 */
-#define SQLITE_VERSION        "3.11.0"
-#define SQLITE_VERSION_NUMBER 3011000
-#define SQLITE_SOURCE_ID      "2016-02-15 17:29:24 3d862f207e3adc00f78066799ac5a8c282430a5f"
+#define SQLITE_VERSION        "3.12.0"
+#define SQLITE_VERSION_NUMBER 3012000
+#define SQLITE_SOURCE_ID      "2016-03-02 03:28:07 1622623cbbfc4325c53d731aba78ca9c382ec612"
 
 /*
 ** CAPI3REF: Run-Time Library Version Numbers
@@ -1228,7 +1228,7 @@ struct sqlite3_vfs {
   const char *(*xNextSystemCall)(sqlite3_vfs*, const char *zName);
   /*
   ** The methods above are in versions 1 through 3 of the sqlite_vfs object.
-  ** New fields may be appended in figure versions.  The iVersion
+  ** New fields may be appended in future versions.  The iVersion
   ** value will increment whenever this happens. 
   */
 };
@@ -1904,11 +1904,25 @@ struct sqlite3_mem_methods {
 ** following this call.  The second parameter may be a NULL pointer, in
 ** which case the trigger setting is not reported back. </dd>
 **
+** <dt>SQLITE_DBCONFIG_ENABLE_FTS3_TOKENIZER</dt>
+** <dd> ^This option is used to enable or disable the two-argument
+** version of the [fts3_tokenizer()] function which is part of the
+** [FTS3] full-text search engine extension.
+** There should be two additional arguments.
+** The first argument is an integer which is 0 to disable fts3_tokenizer() or
+** positive to enable fts3_tokenizer() or negative to leave the setting
+** unchanged.
+** The second parameter is a pointer to an integer into which
+** is written 0 or 1 to indicate whether fts3_tokenizer is disabled or enabled
+** following this call.  The second parameter may be a NULL pointer, in
+** which case the new setting is not reported back. </dd>
+**
 ** </dl>
 */
-#define SQLITE_DBCONFIG_LOOKASIDE       1001  /* void* int int */
-#define SQLITE_DBCONFIG_ENABLE_FKEY     1002  /* int int* */
-#define SQLITE_DBCONFIG_ENABLE_TRIGGER  1003  /* int int* */
+#define SQLITE_DBCONFIG_LOOKASIDE             1001 /* void* int int */
+#define SQLITE_DBCONFIG_ENABLE_FKEY           1002 /* int int* */
+#define SQLITE_DBCONFIG_ENABLE_TRIGGER        1003 /* int int* */
+#define SQLITE_DBCONFIG_ENABLE_FTS3_TOKENIZER 1004 /* int int* */
 
 
 /*
@@ -7489,7 +7503,7 @@ SQLITE_API void SQLITE_CDECL sqlite3_log(int iErrCode, const char *zFormat, ...)
 ** previously registered write-ahead log callback. ^Note that the
 ** [sqlite3_wal_autocheckpoint()] interface and the
 ** [wal_autocheckpoint pragma] both invoke [sqlite3_wal_hook()] and will
-** those overwrite any prior [sqlite3_wal_hook()] settings.
+** overwrite any prior [sqlite3_wal_hook()] settings.
 */
 SQLITE_API void *SQLITE_STDCALL sqlite3_wal_hook(
   sqlite3*, 
@@ -7954,7 +7968,11 @@ SQLITE_API SQLITE_EXPERIMENTAL int SQLITE_STDCALL sqlite3_snapshot_get(
 ** the first operation, apart from other sqlite3_snapshot_open() calls,
 ** following the [BEGIN] that starts a new read transaction.
 ** ^A [snapshot] will fail to open if it has been overwritten by a 
-** [checkpoint].  
+** [checkpoint].
+** ^A [snapshot] will fail to open if the database connection D has not
+** previously completed at least one read operation against the database 
+** file.  (Hint: Run "[PRAGMA application_id]" against a newly opened
+** database connection in order to make it ready to use snapshots.)
 **
 ** The [sqlite3_snapshot_open()] interface is only available when the
 ** SQLITE_ENABLE_SNAPSHOT compile-time option is used.
