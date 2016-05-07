@@ -111,9 +111,9 @@ extern "C" {
 ** [sqlite3_libversion_number()], [sqlite3_sourceid()],
 ** [sqlite_version()] and [sqlite_source_id()].
 */
-#define SQLITE_VERSION        "3.12.0"
-#define SQLITE_VERSION_NUMBER 3012000
-#define SQLITE_SOURCE_ID      "2016-03-08 01:11:51 721ae51e443647291f3a8f7f2128aa410fee2682"
+#define SQLITE_VERSION        "3.12.2"
+#define SQLITE_VERSION_NUMBER 3012002
+#define SQLITE_SOURCE_ID      "2016-04-18 17:30:31 92dc59fd5ad66f646666042eb04195e3a61a9e8e"
 
 /*
 ** CAPI3REF: Run-Time Library Version Numbers
@@ -7914,6 +7914,18 @@ SQLITE_API void SQLITE_STDCALL sqlite3_stmt_scanstatus_reset(sqlite3_stmt*);
 ** returned by the [sqlite3_errcode()] and [sqlite3_errmsg()] functions.
 */
 SQLITE_API int SQLITE_STDCALL sqlite3_db_cacheflush(sqlite3*);
+
+/*
+** CAPI3REF: Low-level system error code
+**
+** ^Attempt to return the underlying operating system error code or error
+** number that caused the most reason I/O error or failure to open a file.
+** The return value is OS-dependent.  For example, on unix systems, after
+** [sqlite3_open_v2()] returns [SQLITE_CANTOPEN], this interface could be
+** called to get back the underlying "errno" that caused the problem, such
+** as ENOSPC, EAUTH, EISDIR, and so forth.  
+*/
+SQLITE_API int SQLITE_STDCALL sqlite3_system_errno(sqlite3*);
 
 /*
 ** CAPI3REF: Database Snapshot
