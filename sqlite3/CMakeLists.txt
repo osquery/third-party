@@ -17,9 +17,11 @@ add_definitions(
   -DSQLITE_ENABLE_DBSTAT_VTAB
 )
 
-add_compile_options(
-  -Wno-parentheses-equality
-  -Wno-unused-value
-)
+if(NOT WIN32)
+  add_compile_options(
+    -Wno-parentheses-equality
+    -Wno-unused-value
+  )
+endif()
 
 add_library(osquery_sqlite OBJECT sqlite3.c)
