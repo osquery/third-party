@@ -10,10 +10,10 @@
 #ifndef BOOST_BEAST_HTTP_SERIALIZER_HPP
 #define BOOST_BEAST_HTTP_SERIALIZER_HPP
 
-#include <boost/beast/config.hpp>
-#include <boost/beast/core/buffer_cat.hpp>
-#include <boost/beast/core/buffer_prefix.hpp>
-#include <boost/beast/core/consuming_buffers.hpp>
+#include <boost/beast/core/detail/config.hpp>
+#include <boost/beast/core/buffers_cat.hpp>
+#include <boost/beast/core/buffers_prefix.hpp>
+#include <boost/beast/core/buffers_suffix.hpp>
 #include <boost/beast/core/string.hpp>
 #include <boost/beast/core/type_traits.hpp>
 #include <boost/beast/core/detail/variant.hpp>
@@ -116,37 +116,37 @@ private:
 
     using reader = typename Body::reader;
 
-    using cb1_t = consuming_buffers<typename
+    using cb1_t = buffers_suffix<typename
         Fields::reader::const_buffers_type>;        // header
-    using pcb1_t  = buffer_prefix_view<cb1_t const&>;
+    using pcb1_t  = buffers_prefix_view<cb1_t const&>;
 
-    using cb2_t = consuming_buffers<buffer_cat_view<
+    using cb2_t = buffers_suffix<buffers_cat_view<
         typename Fields::reader::const_buffers_type,// header
         typename reader::const_buffers_type>>;      // body
-    using pcb2_t = buffer_prefix_view<cb2_t const&>;
+    using pcb2_t = buffers_prefix_view<cb2_t const&>;
 
-    using cb3_t = consuming_buffers<
+    using cb3_t = buffers_suffix<
         typename reader::const_buffers_type>;       // body
-    using pcb3_t = buffer_prefix_view<cb3_t const&>;
+    using pcb3_t = buffers_prefix_view<cb3_t const&>;
 
-    using cb4_t = consuming_buffers<buffer_cat_view<
+    using cb4_t = buffers_suffix<buffers_cat_view<
         typename Fields::reader::const_buffers_type,// header
         detail::chunk_size,                         // chunk-size
         boost::asio::const_buffers_1,               // chunk-ext
         chunk_crlf,                                 // crlf
         typename reader::const_buffers_type,        // body
         chunk_crlf>>;                               // crlf
-    using pcb4_t = buffer_prefix_view<cb4_t const&>;
+    using pcb4_t = buffers_prefix_view<cb4_t const&>;
 
-    using cb5_t = consuming_buffers<buffer_cat_view<
+    using cb5_t = buffers_suffix<buffers_cat_view<
         detail::chunk_size,                         // chunk-header
         boost::asio::const_buffers_1,               // chunk-ext
         chunk_crlf,                                 // crlf
         typename reader::const_buffers_type,        // body
         chunk_crlf>>;                               // crlf
-    using pcb5_t = buffer_prefix_view<cb5_t const&>;
+    using pcb5_t = buffers_prefix_view<cb5_t const&>;
 
-    using cb6_t = consuming_buffers<buffer_cat_view<
+    using cb6_t = buffers_suffix<buffers_cat_view<
         detail::chunk_size,                         // chunk-header
         boost::asio::const_buffers_1,               // chunk-size
         chunk_crlf,                                 // crlf
@@ -155,9 +155,9 @@ private:
         boost::asio::const_buffers_1,               // chunk-final
         boost::asio::const_buffers_1,               // trailers 
         chunk_crlf>>;                               // crlf
-    using pcb6_t = buffer_prefix_view<cb6_t const&>;
+    using pcb6_t = buffers_prefix_view<cb6_t const&>;
 
-    using cb7_t = consuming_buffers<buffer_cat_view<
+    using cb7_t = buffers_suffix<buffers_cat_view<
         typename Fields::reader::const_buffers_type,// header
         detail::chunk_size,                         // chunk-size
         boost::asio::const_buffers_1,               // chunk-ext
@@ -167,13 +167,13 @@ private:
         boost::asio::const_buffers_1,               // chunk-final
         boost::asio::const_buffers_1,               // trailers 
         chunk_crlf>>;                               // crlf
-    using pcb7_t = buffer_prefix_view<cb7_t const&>;
+    using pcb7_t = buffers_prefix_view<cb7_t const&>;
 
-    using cb8_t = consuming_buffers<buffer_cat_view<
+    using cb8_t = buffers_suffix<buffers_cat_view<
         boost::asio::const_buffers_1,               // chunk-final
         boost::asio::const_buffers_1,               // trailers 
         chunk_crlf>>;                               // crlf
-    using pcb8_t = buffer_prefix_view<cb8_t const&>;
+    using pcb8_t = buffers_prefix_view<cb8_t const&>;
 
     value_type& m_;
     reader rd_;

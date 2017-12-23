@@ -10,7 +10,7 @@
 #ifndef BOOST_BEAST_BUFFERED_READ_STREAM_HPP
 #define BOOST_BEAST_BUFFERED_READ_STREAM_HPP
 
-#include <boost/beast/config.hpp>
+#include <boost/beast/core/detail/config.hpp>
 #include <boost/beast/core/async_result.hpp>
 #include <boost/beast/core/error.hpp>
 #include <boost/beast/core/multi_buffer.hpp>
@@ -65,11 +65,11 @@ namespace beast {
             boost::asio::read_until(
                 stream.next_layer(), stream.buffer(), "\r\n\r\n");
 
-        // Use buffer_prefix() to limit the input
+        // Use buffers_prefix() to limit the input
         // sequence to only the data up to and including
         // the trailing "\r\n\r\n".
         //
-        auto header_buffers = buffer_prefix(
+        auto header_buffers = buffers_prefix(
             bytes_transferred, stream.buffer().data());
 
         ...

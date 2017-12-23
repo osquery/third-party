@@ -10,13 +10,15 @@
 #ifndef BOOST_BEAST_HTTP_MESSAGE_HPP
 #define BOOST_BEAST_HTTP_MESSAGE_HPP
 
-#include <boost/beast/config.hpp>
+#include <boost/beast/core/detail/config.hpp>
 #include <boost/beast/http/fields.hpp>
 #include <boost/beast/http/verb.hpp>
 #include <boost/beast/http/status.hpp>
 #include <boost/beast/http/type_traits.hpp>
 #include <boost/beast/core/string.hpp>
+#include <boost/beast/core/detail/empty_base_optimization.hpp>
 #include <boost/beast/core/detail/integer_sequence.hpp>
+#include <boost/assert.hpp>
 #include <boost/optional.hpp>
 #include <boost/throw_exception.hpp>
 #include <memory>
@@ -68,7 +70,22 @@ struct header<true, Fields> : Fields
     /// The type representing the fields.
     using fields_type = Fields;
 
-    /** The HTTP-version.
+    /// Constructor
+    header() = default;
+
+    /// Constructor
+    header(header&&) = default;
+
+    /// Constructor
+    header(header const&) = default;
+
+    /// Assignment
+    header& operator=(header&&) = default;
+
+    /// Assignment
+    header& operator=(header const&) = default;
+
+    /** Return the HTTP-version.
 
         This holds both the major and minor version numbers,
         using these formulas:
@@ -79,22 +96,29 @@ struct header<true, Fields> : Fields
 
         Newly constructed headers will use HTTP/1.1 by default.
     */
-    unsigned version = 11;
+    unsigned version() const noexcept
+    {
+        return version_;
+    }
 
-    /// Default constructor
-    header() = default;
+    /** Set the HTTP-version.
 
-    /// Move constructor
-    header(header&&) = default;
+        This holds both the major and minor version numbers,
+        using these formulas:
+        @code
+            unsigned major = version / 10;
+            unsigned minor = version % 10;
+        @endcode
 
-    /// Copy constructor
-    header(header const&) = default;
+        Newly constructed headers will use HTTP/1.1 by default.
 
-    /// Move assignment
-    header& operator=(header&&) = default;
-
-    /// Copy assignment
-    header& operator=(header const&) = default;
+        @param value The version number to use
+    */
+    void version(unsigned value) noexcept
+    {
+        BOOST_ASSERT(value > 0 && value < 100);
+        version_ = value;
+    }
 
     /** Return the request-method verb.
 
@@ -205,15 +229,16 @@ private:
     header(
         verb method,
         string_view target_,
-        unsigned version_,
+        unsigned version_value,
         FieldsArgs&&... fields_args)
         : Fields(std::forward<FieldsArgs>(fields_args)...)
-        , version(version_)
         , method_(method)
     {
+        version(version_value);
         target(target_);
     }
 
+    unsigned version_ = 11;
     verb method_ = verb::unknown;
 };
 
@@ -233,33 +258,19 @@ struct header<false, Fields> : Fields
     /// The type representing the fields.
     using fields_type = Fields;
 
-    /** The HTTP version.
-
-        This holds both the major and minor version numbers,
-        using these formulas:
-        @code
-            unsigned major = version / 10;
-            unsigned minor = version % 10;
-        @endcode
-
-        Newly constructed headers will use HTTP/1.1 by default
-        unless otherwise specified.
-    */
-    unsigned version = 11;
-
-    /// Default constructor.
+    /// Constructor.
     header() = default;
 
-    /// Move constructor
+    /// Constructor
     header(header&&) = default;
 
-    /// Copy constructor
+    /// Constructor
     header(header const&) = default;
 
-    /// Move assignment
+    /// Assignment
     header& operator=(header&&) = default;
 
-    /// Copy assignment
+    /// Assignment
     header& operator=(header const&) = default;
 
     /** Constructor
@@ -281,6 +292,41 @@ struct header<false, Fields> : Fields
         >::type>
     explicit
     header(Arg1&& arg1, ArgN&&... argn);
+
+    /** Return the HTTP-version.
+
+        This holds both the major and minor version numbers,
+        using these formulas:
+        @code
+            unsigned major = version / 10;
+            unsigned minor = version % 10;
+        @endcode
+
+        Newly constructed headers will use HTTP/1.1 by default.
+    */
+    unsigned version() const noexcept
+    {
+        return version_;
+    }
+
+    /** Set the HTTP-version.
+
+        This holds both the major and minor version numbers,
+        using these formulas:
+        @code
+            unsigned major = version / 10;
+            unsigned minor = version % 10;
+        @endcode
+
+        Newly constructed headers will use HTTP/1.1 by default.
+
+        @param value The version number to use
+    */
+    void version(unsigned value) noexcept
+    {
+        BOOST_ASSERT(value > 0 && value < 100);
+        version_ = value;
+    }
 #endif
 
     /** The response status-code result.
@@ -371,14 +417,15 @@ private:
     template<class... FieldsArgs>
     header(
         status result,
-        unsigned version_,
+        unsigned version_value,
         FieldsArgs&&... fields_args)
         : Fields(std::forward<FieldsArgs>(fields_args)...)
-        , version(version_)
         , result_(result)
     {
+        version(version_value);
     }
 
+    unsigned version_ = 11;
     status result_ = status::ok;
 #endif
 };
@@ -390,6 +437,14 @@ using request_header = header<true, Fields>;
 /// A typical HTTP response header
 template<class Fields = fields>
 using response_header = header<false, Fields>;
+
+#if defined(BOOST_MSVC)
+// Workaround for MSVC bug with private base classes
+namespace detail {
+template<class T>
+using value_type_t = typename T::value_type;
+} // detail
+#endif
 
 /** A container for a complete HTTP message.
 
@@ -421,7 +476,12 @@ using response_header = header<false, Fields>;
     field value pairs.
 */
 template<bool isRequest, class Body, class Fields = fields>
-struct message : header<isRequest, Fields>
+struct message
+    : header<isRequest, Fields>
+#if ! BOOST_BEAST_DOXYGEN
+    , beast::detail::empty_base_optimization<
+        typename Body::value_type>
+#endif
 {
     /// The base class used to hold the header portion of the message.
     using header_type = header<isRequest, Fields>;
@@ -431,9 +491,6 @@ struct message : header<isRequest, Fields>
         The @ref message::body member will be of type `body_type::value_type`.
     */
     using body_type = Body;
-
-    /// A value representing the body.
-    typename Body::value_type body;
 
     /// Constructor
     message() = default;
@@ -692,7 +749,7 @@ struct message : header<isRequest, Fields>
     bool
     keep_alive() const
     {
-        return this->get_keep_alive_impl(this->version);
+        return this->get_keep_alive_impl(this->version());
     }
 
     /** Set the keep-alive message semantic option
@@ -708,7 +765,7 @@ struct message : header<isRequest, Fields>
     void
     keep_alive(bool value)
     {
-        this->set_keep_alive_impl(this->version, value);
+        this->set_keep_alive_impl(this->version(), value);
     }
 
     /** Returns the payload size of the body in octets if possible.
@@ -736,7 +793,7 @@ struct message : header<isRequest, Fields>
         @code
         request<string_body> req{verb::post, "/"};
         req.set(field::user_agent, "Beast");
-        req.body = "Hello, world!";
+        req.body() = "Hello, world!";
         req.prepare_payload();
         @endcode
     */
@@ -744,6 +801,28 @@ struct message : header<isRequest, Fields>
     prepare_payload()
     {
         prepare_payload(typename header_type::is_request{});
+    }
+
+    /// Returns the body
+#if BOOST_BEAST_DOXYGEN || ! defined(BOOST_MSVC)
+    typename body_type::value_type&
+#else
+    detail::value_type_t<Body>&
+#endif
+    body() noexcept
+    {
+        return this->member();
+    }
+
+    /// Returns the body
+#if BOOST_BEAST_DOXYGEN || ! defined(BOOST_MSVC)
+    typename body_type::value_type const&
+#else
+    detail::value_type_t<Body> const&
+#endif
+    body() const noexcept
+    {
+        return this->member();
     }
 
 private:
@@ -757,8 +836,10 @@ private:
         std::piecewise_construct_t,
         std::tuple<BodyArgs...>& body_args,
         beast::detail::index_sequence<IBodyArgs...>)
-        : body(std::forward<BodyArgs>(
-            std::get<IBodyArgs>(body_args))...)
+        : beast::detail::empty_base_optimization<
+            typename Body::value_type>(
+                std::forward<BodyArgs>(
+                std::get<IBodyArgs>(body_args))...)
     {
         boost::ignore_unused(body_args);
     }
@@ -776,8 +857,10 @@ private:
         beast::detail::index_sequence<IFieldsArgs...>)
         : header_type(std::forward<FieldsArgs>(
             std::get<IFieldsArgs>(fields_args))...)
-        , body(std::forward<BodyArgs>(
-            std::get<IBodyArgs>(body_args))...)
+        , beast::detail::empty_base_optimization<
+            typename Body::value_type>(
+                std::forward<BodyArgs>(
+                std::get<IBodyArgs>(body_args))...)
     {
         boost::ignore_unused(body_args);
         boost::ignore_unused(fields_args);
@@ -786,7 +869,7 @@ private:
     boost::optional<std::uint64_t>
     payload_size(std::true_type) const
     {
-        return Body::size(body);
+        return Body::size(this->body());
     }
 
     boost::optional<std::uint64_t>

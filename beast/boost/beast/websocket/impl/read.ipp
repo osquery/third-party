@@ -12,8 +12,8 @@
 
 #include <boost/beast/websocket/teardown.hpp>
 #include <boost/beast/core/bind_handler.hpp>
-#include <boost/beast/core/buffer_prefix.hpp>
-#include <boost/beast/core/consuming_buffers.hpp>
+#include <boost/beast/core/buffers_prefix.hpp>
+#include <boost/beast/core/buffers_suffix.hpp>
 #include <boost/beast/core/flat_static_buffer.hpp>
 #include <boost/beast/core/type_traits.hpp>
 #include <boost/beast/core/detail/clamp.hpp>
@@ -47,7 +47,8 @@ class stream<NextLayer>::read_some_op
 {
     Handler h_;
     stream<NextLayer>& ws_;
-    consuming_buffers<MutableBufferSequence> cb_;
+    MutableBufferSequence bs_;
+    buffers_suffix<MutableBufferSequence> cb_;
     std::size_t bytes_written_ = 0;
     error_code ev_;
     token tok_;
@@ -66,6 +67,7 @@ public:
         MutableBufferSequence const& bs)
         : h_(std::forward<DeducedHandler>(h))
         , ws_(ws)
+        , bs_(bs)
         , cb_(bs)
         , tok_(ws_.tok_.unique())
         , code_(close_code::none)
@@ -228,7 +230,7 @@ operator()(
             // Immediately apply the mask to the portion
             // of the buffer holding payload data.
             if(ws_.rd_fh_.len > 0 && ws_.rd_fh_.mask)
-                detail::mask_inplace(buffer_prefix(
+                detail::mask_inplace(buffers_prefix(
                     clamp(ws_.rd_fh_.len),
                         ws_.rd_buf_.data()),
                             ws_.rd_key_);
@@ -242,7 +244,7 @@ operator()(
                 if(ws_.rd_fh_.op == detail::opcode::ping)
                 {
                     {
-                        auto const b = buffer_prefix(
+                        auto const b = buffers_prefix(
                             clamp(ws_.rd_fh_.len),
                                 ws_.rd_buf_.data());
                         auto const len = buffer_size(b);
@@ -313,7 +315,7 @@ operator()(
                 // Handle pong frame
                 if(ws_.rd_fh_.op == detail::opcode::pong)
                 {
-                    auto const cb = buffer_prefix(clamp(
+                    auto const cb = buffers_prefix(clamp(
                         ws_.rd_fh_.len), ws_.rd_buf_.data());
                     auto const len = buffer_size(cb);
                     BOOST_ASSERT(len == ws_.rd_fh_.len);
@@ -329,7 +331,7 @@ operator()(
                 // Handle close frame
                 BOOST_ASSERT(ws_.rd_fh_.op == detail::opcode::close);
                 {
-                    auto const cb = buffer_prefix(clamp(
+                    auto const cb = buffers_prefix(clamp(
                         ws_.rd_fh_.len), ws_.rd_buf_.data());
                     auto const len = buffer_size(cb);
                     BOOST_ASSERT(len == ws_.rd_fh_.len);
@@ -392,7 +394,7 @@ operator()(
                         goto upcall;
                     ws_.rd_buf_.commit(bytes_transferred);
                     if(ws_.rd_fh_.mask)
-                        detail::mask_inplace(buffer_prefix(clamp(
+                        detail::mask_inplace(buffers_prefix(clamp(
                             ws_.rd_remain_), ws_.rd_buf_.data()),
                                 ws_.rd_key_);
                 }
@@ -402,7 +404,7 @@ operator()(
                     // The mask was already applied.
                     bytes_transferred = buffer_copy(cb_,
                         ws_.rd_buf_.data(), clamp(ws_.rd_remain_));
-                    auto const mb = buffer_prefix(
+                    auto const mb = buffers_prefix(
                         bytes_transferred, cb_);
                     ws_.rd_remain_ -= bytes_transferred;
                     if(ws_.rd_op_ == detail::opcode::text)
@@ -426,13 +428,15 @@ operator()(
                     // Read into caller's buffer
                     BOOST_ASSERT(ws_.rd_remain_ > 0);
                     BOOST_ASSERT(buffer_size(cb_) > 0);
+                    BOOST_ASSERT(buffer_size(buffers_prefix(
+                        clamp(ws_.rd_remain_), cb_)) > 0);
                     BOOST_ASIO_CORO_YIELD
-                    ws_.stream_.async_read_some(buffer_prefix(
+                    ws_.stream_.async_read_some(buffers_prefix(
                         clamp(ws_.rd_remain_), cb_), std::move(*this));
                     if(! ws_.check_ok(ec))
                         goto upcall;
                     BOOST_ASSERT(bytes_transferred > 0);
-                    auto const mb = buffer_prefix(
+                    auto const mb = buffers_prefix(
                         bytes_transferred, cb_);
                     ws_.rd_remain_ -= bytes_transferred;
                     if(ws_.rd_fh_.mask)
@@ -478,13 +482,13 @@ operator()(
                     ws_.rd_buf_.commit(bytes_transferred);
                     if(ws_.rd_fh_.mask)
                         detail::mask_inplace(
-                            buffer_prefix(clamp(ws_.rd_remain_),
+                            buffers_prefix(clamp(ws_.rd_remain_),
                                 ws_.rd_buf_.data()), ws_.rd_key_);
                     did_read_ = true;
                 }
                 zlib::z_params zs;
                 {
-                    auto const out = buffer_front(cb_);
+                    auto const out = buffers_front(cb_);
                     zs.next_out = buffer_cast<void*>(out);
                     zs.avail_out = buffer_size(out);
                     BOOST_ASSERT(zs.avail_out > 0);
@@ -494,8 +498,8 @@ operator()(
                     if(ws_.rd_buf_.size() > 0)
                     {
                         // use what's there
-                        auto const in = buffer_prefix(
-                            clamp(ws_.rd_remain_), buffer_front(
+                        auto const in = buffers_prefix(
+                            clamp(ws_.rd_remain_), buffers_front(
                                 ws_.rd_buf_.data()));
                         zs.avail_in = buffer_size(in);
                         zs.next_in = buffer_cast<void const*>(in);
@@ -556,7 +560,7 @@ operator()(
             {
                 // check utf8
                 if(! ws_.rd_utf8_.write(
-                    buffer_prefix(bytes_written_, cb_.get())) || (
+                    buffers_prefix(bytes_written_, bs_)) || (
                         ws_.rd_done_ && ! ws_.rd_utf8_.finish()))
                 {
                     // _Fail the WebSocket Connection_
@@ -1006,13 +1010,13 @@ loop:
         // Immediately apply the mask to the portion
         // of the buffer holding payload data.
         if(rd_fh_.len > 0 && rd_fh_.mask)
-            detail::mask_inplace(buffer_prefix(
+            detail::mask_inplace(buffers_prefix(
                 clamp(rd_fh_.len), rd_buf_.data()),
                     rd_key_);
         if(detail::is_control(rd_fh_.op))
         {
             // Get control frame payload
-            auto const b = buffer_prefix(
+            auto const b = buffers_prefix(
                 clamp(rd_fh_.len), rd_buf_.data());
             auto const len = buffer_size(b);
             BOOST_ASSERT(len == rd_fh_.len);
@@ -1073,7 +1077,8 @@ loop:
                 // _Start the WebSocket Closing Handshake_
                 do_fail(
                     cr.code == close_code::none ?
-                        close_code::normal : cr.code,
+                        close_code::normal : 
+                        static_cast<close_code>(cr.code),
                     error::closed, ec);
                 return bytes_written;
             }
@@ -1106,7 +1111,7 @@ loop:
                     return bytes_written;
                 if(rd_fh_.mask)
                     detail::mask_inplace(
-                        buffer_prefix(clamp(rd_remain_),
+                        buffers_prefix(clamp(rd_remain_),
                             rd_buf_.data()), rd_key_);
             }
             if(rd_buf_.size() > 0)
@@ -1116,7 +1121,7 @@ loop:
                 auto const bytes_transferred =
                     buffer_copy(buffers, rd_buf_.data(),
                         clamp(rd_remain_));
-                auto const mb = buffer_prefix(
+                auto const mb = buffers_prefix(
                     bytes_transferred, buffers);
                 rd_remain_ -= bytes_transferred;
                 if(rd_op_ == detail::opcode::text)
@@ -1142,13 +1147,15 @@ loop:
                 // Read into caller's buffer
                 BOOST_ASSERT(rd_remain_ > 0);
                 BOOST_ASSERT(buffer_size(buffers) > 0);
+                BOOST_ASSERT(buffer_size(buffers_prefix(
+                    clamp(rd_remain_), buffers)) > 0);
                 auto const bytes_transferred =
-                    stream_.read_some(buffer_prefix(
+                    stream_.read_some(buffers_prefix(
                         clamp(rd_remain_), buffers), ec);
                 if(! check_ok(ec))
                     return bytes_written;
                 BOOST_ASSERT(bytes_transferred > 0);
-                auto const mb = buffer_prefix(
+                auto const mb = buffers_prefix(
                     bytes_transferred, buffers);
                 rd_remain_ -= bytes_transferred;
                 if(rd_fh_.mask)
@@ -1178,12 +1185,12 @@ loop:
         // never emit the end-of-stream deflate block.
         //
         bool did_read = false;
-        consuming_buffers<MutableBufferSequence> cb{buffers};
+        buffers_suffix<MutableBufferSequence> cb{buffers};
         while(buffer_size(cb) > 0)
         {
             zlib::z_params zs;
             {
-                auto const out = buffer_front(cb);
+                auto const out = buffers_front(cb);
                 zs.next_out = buffer_cast<void*>(out);
                 zs.avail_out = buffer_size(out);
                 BOOST_ASSERT(zs.avail_out > 0);
@@ -1193,8 +1200,8 @@ loop:
                 if(rd_buf_.size() > 0)
                 {
                     // use what's there
-                    auto const in = buffer_prefix(
-                        clamp(rd_remain_), buffer_front(
+                    auto const in = buffers_prefix(
+                        clamp(rd_remain_), buffers_front(
                             rd_buf_.data()));
                     zs.avail_in = buffer_size(in);
                     zs.next_in = buffer_cast<void const*>(in);
@@ -1213,10 +1220,10 @@ loop:
                     rd_buf_.commit(bytes_transferred);
                     if(rd_fh_.mask)
                         detail::mask_inplace(
-                            buffer_prefix(clamp(rd_remain_),
+                            buffers_prefix(clamp(rd_remain_),
                                 rd_buf_.data()), rd_key_);
-                    auto const in = buffer_prefix(
-                        clamp(rd_remain_), buffer_front(
+                    auto const in = buffers_prefix(
+                        clamp(rd_remain_), buffers_front(
                             rd_buf_.data()));
                     zs.avail_in = buffer_size(in);
                     zs.next_in = buffer_cast<void const*>(in);
@@ -1277,7 +1284,7 @@ loop:
         {
             // check utf8
             if(! rd_utf8_.write(
-                buffer_prefix(bytes_written, buffers)) || (
+                buffers_prefix(bytes_written, buffers)) || (
                     rd_done_ && ! rd_utf8_.finish()))
             {
                 // _Fail the WebSocket Connection_

@@ -11,7 +11,7 @@
 #define BOOST_BEAST_WEBSOCKET_DETAIL_PMD_EXTENSION_HPP
 
 #include <boost/beast/core/error.hpp>
-#include <boost/beast/core/consuming_buffers.hpp>
+#include <boost/beast/core/buffers_suffix.hpp>
 #include <boost/beast/core/read_size.hpp>
 #include <boost/beast/zlib/deflate_stream.hpp>
 #include <boost/beast/zlib/inflate_stream.hpp>
@@ -365,8 +365,9 @@ bool
 deflate(
     DeflateStream& zo,
     boost::asio::mutable_buffer& out,
-    consuming_buffers<ConstBufferSequence>& cb,
+    buffers_suffix<ConstBufferSequence>& cb,
     bool fin,
+    std::size_t& total_in,
     error_code& ec)
 {
     using boost::asio::buffer;
@@ -401,6 +402,7 @@ deflate(
         }
         BOOST_ASSERT(zs.avail_in == 0);
     }
+    total_in = zs.total_in;
     cb.consume(zs.total_in);
     if(zs.avail_out > 0 && fin)
     {

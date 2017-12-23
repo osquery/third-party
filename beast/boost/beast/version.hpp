@@ -10,7 +10,7 @@
 #ifndef BOOST_BEAST_VERSION_HPP
 #define BOOST_BEAST_VERSION_HPP
 
-#include <boost/beast/config.hpp>
+#include <boost/beast/core/detail/config.hpp>
 #include <boost/config.hpp>
 
 /** @def BOOST_BEAST_API_VERSION 
@@ -20,7 +20,7 @@
     This is a simple integer that is incremented by one every
     time a set of code changes is merged to the develop branch.
 */
-#define BOOST_BEAST_VERSION 111
+#define BOOST_BEAST_VERSION 124
 
 #define BOOST_BEAST_VERSION_STRING "Boost.Beast/" BOOST_STRINGIZE(BOOST_BEAST_VERSION)
 

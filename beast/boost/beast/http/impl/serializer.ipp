@@ -27,7 +27,7 @@ void
 serializer<isRequest, Body, Fields>::
 frdinit(std::true_type)
 {
-    frd_.emplace(m_, m_.version, m_.method());
+    frd_.emplace(m_, m_.version(), m_.method());
 }
 
 template<
@@ -36,7 +36,7 @@ void
 serializer<isRequest, Body, Fields>::
 frdinit(std::false_type)
 {
-    frd_.emplace(m_, m_.version, m_.result_int());
+    frd_.emplace(m_, m_.version(), m_.result_int());
 }
 
 template<
@@ -48,9 +48,8 @@ serializer<isRequest, Body, Fields>::
 do_visit(error_code& ec, Visit& visit)
 {
     pv_.template emplace<I>(limit_, v_.template get<I>());
-    visit(ec,
-        beast::detail::make_buffers_ref(
-            pv_.template get<I>()));
+    visit(ec, beast::detail::make_buffers_ref(
+        pv_.template get<I>()));
 }
 
 //------------------------------------------------------------------------------
@@ -72,7 +71,6 @@ serializer<isRequest, Body, Fields>::
 next(error_code& ec, Visit&& visit)
 {
     using boost::asio::buffer_size;
-    using beast::detail::make_buffers_ref;
     switch(s_)
     {
     case do_construct:

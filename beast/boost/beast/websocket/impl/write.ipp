@@ -11,9 +11,9 @@
 #define BOOST_BEAST_WEBSOCKET_IMPL_WRITE_IPP
 
 #include <boost/beast/core/bind_handler.hpp>
-#include <boost/beast/core/buffer_cat.hpp>
-#include <boost/beast/core/buffer_prefix.hpp>
-#include <boost/beast/core/consuming_buffers.hpp>
+#include <boost/beast/core/buffers_cat.hpp>
+#include <boost/beast/core/buffers_prefix.hpp>
+#include <boost/beast/core/buffers_suffix.hpp>
 #include <boost/beast/core/handler_ptr.hpp>
 #include <boost/beast/core/flat_static_buffer.hpp>
 #include <boost/beast/core/type_traits.hpp>
@@ -41,10 +41,12 @@ class stream<NextLayer>::write_some_op
 {
     Handler h_;
     stream<NextLayer>& ws_;
-    consuming_buffers<Buffers> cb_;
+    buffers_suffix<Buffers> cb_;
     detail::frame_header fh_;
     detail::prepared_key key_;
+    std::size_t bytes_transferred_ = 0;
     std::size_t remain_;
+    std::size_t in_;
     token tok_;
     int how_;
     bool fin_;
@@ -244,10 +246,11 @@ operator()(
             // Send frame
             BOOST_ASIO_CORO_YIELD
             boost::asio::async_write(ws_.stream_,
-                buffer_cat(ws_.wr_fb_.data(), cb_),
+                buffers_cat(ws_.wr_fb_.data(), cb_),
                     std::move(*this));
             if(! ws_.check_ok(ec))
                 goto upcall;
+            bytes_transferred_ += clamp(fh_.len);
             goto upcall;
         }
 
@@ -257,8 +260,9 @@ operator()(
         {
             for(;;)
             {
-                fh_.len = clamp(remain_, ws_.wr_buf_size_);
-                remain_ -= clamp(fh_.len);
+                n = clamp(remain_, ws_.wr_buf_size_);
+                fh_.len = n;
+                remain_ -= n;
                 fh_.fin = fin_ ? remain_ == 0 : false;
                 ws_.wr_fb_.reset();
                 detail::write<flat_static_buffer_base>(
@@ -267,16 +271,17 @@ operator()(
                 // Send frame
                 BOOST_ASIO_CORO_YIELD
                 boost::asio::async_write(
-                    ws_.stream_, buffer_cat(
-                        ws_.wr_fb_.data(), buffer_prefix(
+                    ws_.stream_, buffers_cat(
+                        ws_.wr_fb_.data(), buffers_prefix(
                             clamp(fh_.len), cb_)),
                                 std::move(*this));
                 if(! ws_.check_ok(ec))
                     goto upcall;
+                n = clamp(fh_.len); // because yield
+                bytes_transferred_ += n;
                 if(remain_ == 0)
                     break;
-                cb_.consume(
-                    bytes_transferred - ws_.wr_fb_.size());
+                cb_.consume(n);
                 fh_.op = detail::opcode::cont;
                 // Allow outgoing control frames to
                 // be sent in between message frames
@@ -315,11 +320,13 @@ operator()(
             // Send frame header and partial payload
             BOOST_ASIO_CORO_YIELD
             boost::asio::async_write(
-                ws_.stream_, buffer_cat(ws_.wr_fb_.data(),
+                ws_.stream_, buffers_cat(ws_.wr_fb_.data(),
                     buffer(ws_.wr_buf_.get(), n)),
                         std::move(*this));
             if(! ws_.check_ok(ec))
                 goto upcall;
+            bytes_transferred_ +=
+                bytes_transferred - ws_.wr_fb_.size();
             while(remain_ > 0)
             {
                 cb_.consume(ws_.wr_buf_size_);
@@ -336,6 +343,7 @@ operator()(
                         std::move(*this));
                 if(! ws_.check_ok(ec))
                     goto upcall;
+                bytes_transferred_ += bytes_transferred;
             }
             goto upcall;
         }
@@ -363,15 +371,16 @@ operator()(
                 // Send frame
                 BOOST_ASIO_CORO_YIELD
                 boost::asio::async_write(ws_.stream_,
-                    buffer_cat(ws_.wr_fb_.data(),
+                    buffers_cat(ws_.wr_fb_.data(),
                         buffer(ws_.wr_buf_.get(), n)),
                             std::move(*this));
                 if(! ws_.check_ok(ec))
                     goto upcall;
+                n = bytes_transferred - ws_.wr_fb_.size();
+                bytes_transferred_ += n;
                 if(remain_ == 0)
                     break;
-                cb_.consume(
-                    bytes_transferred - ws_.wr_fb_.size());
+                cb_.consume(n);
                 fh_.op = detail::opcode::cont;
                 // Allow outgoing control frames to
                 // be sent in between message frames:
@@ -396,8 +405,8 @@ operator()(
             {
                 b = buffer(ws_.wr_buf_.get(),
                     ws_.wr_buf_size_);
-                more_ = detail::deflate(
-                    ws_.pmd_->zo, b, cb_, fin_, ec);
+                more_ = detail::deflate(ws_.pmd_->zo,
+                    b, cb_, fin_, in_, ec);
                 if(! ws_.check_ok(ec))
                     goto upcall;
                 n = buffer_size(b);
@@ -426,10 +435,11 @@ operator()(
                 // Send frame
                 BOOST_ASIO_CORO_YIELD
                 boost::asio::async_write(ws_.stream_,
-                    buffer_cat(ws_.wr_fb_.data(),
+                    buffers_cat(ws_.wr_fb_.data(),
                         mutable_buffers_1{b}), std::move(*this));
                 if(! ws_.check_ok(ec))
                     goto upcall;
+                bytes_transferred_ += in_;
                 if(more_)
                 {
                     fh_.op = detail::opcode::cont;
@@ -469,8 +479,8 @@ operator()(
             ws_.paused_ping_.maybe_invoke();
         if(! cont_)
             return ws_.stream_.get_io_service().post(
-                bind_handler(h_, ec));
-        h_(ec);
+                bind_handler(h_, ec, bytes_transferred_));
+        h_(ec, bytes_transferred_);
     }
 }
 
@@ -478,7 +488,7 @@ operator()(
 
 template<class NextLayer>
 template<class ConstBufferSequence>
-void
+std::size_t
 stream<NextLayer>::
 write_some(bool fin, ConstBufferSequence const& buffers)
 {
@@ -488,14 +498,16 @@ write_some(bool fin, ConstBufferSequence const& buffers)
         ConstBufferSequence>::value,
             "ConstBufferSequence requirements not met");
     error_code ec;
-    write_some(fin, buffers, ec);
+    auto const bytes_transferred =
+        write_some(fin, buffers, ec);
     if(ec)
         BOOST_THROW_EXCEPTION(system_error{ec});
+    return bytes_transferred;
 }
 
 template<class NextLayer>
 template<class ConstBufferSequence>
-void
+std::size_t
 stream<NextLayer>::
 write_some(bool fin,
     ConstBufferSequence const& buffers, error_code& ec)
@@ -509,10 +521,11 @@ write_some(bool fin,
     using boost::asio::buffer;
     using boost::asio::buffer_copy;
     using boost::asio::buffer_size;
+    std::size_t bytes_transferred = 0;
     ec.assign(0, ec.category());
     // Make sure the stream is open
     if(! check_open(ec))
-        return;
+        return bytes_transferred;
     detail::frame_header fh;
     if(! wr_cont_)
     {
@@ -531,16 +544,17 @@ write_some(bool fin,
     auto remain = buffer_size(buffers);
     if(wr_compress_)
     {
-        consuming_buffers<
+        buffers_suffix<
             ConstBufferSequence> cb{buffers};
         for(;;)
         {
             auto b = buffer(
                 wr_buf_.get(), wr_buf_size_);
             auto const more = detail::deflate(
-                pmd_->zo, b, cb, fin, ec);
+                pmd_->zo, b, cb, fin,
+                    bytes_transferred, ec);
             if(! check_ok(ec))
-                return;
+                return bytes_transferred;
             auto const n = buffer_size(b);
             if(n == 0)
             {
@@ -566,9 +580,9 @@ write_some(bool fin,
                 flat_static_buffer_base>(fh_buf, fh);
             wr_cont_ = ! fin;
             boost::asio::write(stream_,
-                buffer_cat(fh_buf.data(), b), ec);
+                buffers_cat(fh_buf.data(), b), ec);
             if(! check_ok(ec))
-                return;
+                return bytes_transferred;
             if(! more)
                 break;
             fh.op = detail::opcode::cont;
@@ -593,15 +607,16 @@ write_some(bool fin,
                 flat_static_buffer_base>(fh_buf, fh);
             wr_cont_ = ! fin;
             boost::asio::write(stream_,
-                buffer_cat(fh_buf.data(), buffers), ec);
+                buffers_cat(fh_buf.data(), buffers), ec);
             if(! check_ok(ec))
-                return;
+                return bytes_transferred;
+            bytes_transferred += remain;
         }
         else
         {
             // no mask, autofrag
             BOOST_ASSERT(wr_buf_size_ != 0);
-            consuming_buffers<
+            buffers_suffix<
                 ConstBufferSequence> cb{buffers};
             for(;;)
             {
@@ -614,10 +629,11 @@ write_some(bool fin,
                     flat_static_buffer_base>(fh_buf, fh);
                 wr_cont_ = ! fin;
                 boost::asio::write(stream_,
-                    buffer_cat(fh_buf.data(),
-                        buffer_prefix(n, cb)), ec);
+                    buffers_cat(fh_buf.data(),
+                        buffers_prefix(n, cb)), ec);
                 if(! check_ok(ec))
-                    return;
+                    return bytes_transferred;
+                bytes_transferred += n;
                 if(remain == 0)
                     break;
                 fh.op = detail::opcode::cont;
@@ -636,7 +652,7 @@ write_some(bool fin,
         detail::fh_buffer fh_buf;
         detail::write<
             flat_static_buffer_base>(fh_buf, fh);
-        consuming_buffers<
+        buffers_suffix<
             ConstBufferSequence> cb{buffers};
         {
             auto const n = clamp(remain, wr_buf_size_);
@@ -647,9 +663,10 @@ write_some(bool fin,
             detail::mask_inplace(b, key);
             wr_cont_ = ! fin;
             boost::asio::write(stream_,
-                buffer_cat(fh_buf.data(), b), ec);
+                buffers_cat(fh_buf.data(), b), ec);
             if(! check_ok(ec))
-                return;
+                return bytes_transferred;
+            bytes_transferred += n;
         }
         while(remain > 0)
         {
@@ -661,14 +678,15 @@ write_some(bool fin,
             detail::mask_inplace(b, key);
             boost::asio::write(stream_, b, ec);
             if(! check_ok(ec))
-                return;
+                return bytes_transferred;
+            bytes_transferred += n;
         }
     }
     else
     {
         // mask, autofrag
         BOOST_ASSERT(wr_buf_size_ != 0);
-        consuming_buffers<
+        buffers_suffix<
             ConstBufferSequence> cb{buffers};
         for(;;)
         {
@@ -687,21 +705,23 @@ write_some(bool fin,
             detail::write<
                 flat_static_buffer_base>(fh_buf, fh);
             boost::asio::write(stream_,
-                buffer_cat(fh_buf.data(), b), ec);
+                buffers_cat(fh_buf.data(), b), ec);
             if(! check_ok(ec))
-                return;
+                return bytes_transferred;
+            bytes_transferred += n;
             if(remain == 0)
                 break;
             fh.op = detail::opcode::cont;
             cb.consume(n);
         }
     }
+    return bytes_transferred;
 }
 
 template<class NextLayer>
 template<class ConstBufferSequence, class WriteHandler>
 async_return_type<
-    WriteHandler, void(error_code)>
+    WriteHandler, void(error_code, std::size_t)>
 stream<NextLayer>::
 async_write_some(bool fin,
     ConstBufferSequence const& bs, WriteHandler&& handler)
@@ -712,10 +732,11 @@ async_write_some(bool fin,
         ConstBufferSequence>::value,
             "ConstBufferSequence requirements not met");
     async_completion<WriteHandler,
-        void(error_code)> init{handler};
+        void(error_code, std::size_t)> init{handler};
     write_some_op<ConstBufferSequence, handler_type<
-        WriteHandler, void(error_code)>>{init.completion_handler,
-            *this, fin, bs}({}, 0, false);
+        WriteHandler, void(error_code, std::size_t)>>{
+            init.completion_handler, *this, fin, bs}(
+                {}, 0, false);
     return init.result.get();
 }
 
@@ -723,7 +744,7 @@ async_write_some(bool fin,
 
 template<class NextLayer>
 template<class ConstBufferSequence>
-void
+std::size_t
 stream<NextLayer>::
 write(ConstBufferSequence const& buffers)
 {
@@ -733,14 +754,15 @@ write(ConstBufferSequence const& buffers)
         ConstBufferSequence>::value,
             "ConstBufferSequence requirements not met");
     error_code ec;
-    write(buffers, ec);
+    auto const bytes_transferred = write(buffers, ec);
     if(ec)
         BOOST_THROW_EXCEPTION(system_error{ec});
+    return bytes_transferred;
 }
 
 template<class NextLayer>
 template<class ConstBufferSequence>
-void
+std::size_t
 stream<NextLayer>::
 write(ConstBufferSequence const& buffers, error_code& ec)
 {
@@ -749,13 +771,13 @@ write(ConstBufferSequence const& buffers, error_code& ec)
     static_assert(beast::is_const_buffer_sequence<
         ConstBufferSequence>::value,
             "ConstBufferSequence requirements not met");
-    write_some(true, buffers, ec);
+    return write_some(true, buffers, ec);
 }
 
 template<class NextLayer>
 template<class ConstBufferSequence, class WriteHandler>
 async_return_type<
-    WriteHandler, void(error_code)>
+    WriteHandler, void(error_code, std::size_t)>
 stream<NextLayer>::
 async_write(
     ConstBufferSequence const& bs, WriteHandler&& handler)
@@ -766,10 +788,11 @@ async_write(
         ConstBufferSequence>::value,
             "ConstBufferSequence requirements not met");
     async_completion<WriteHandler,
-        void(error_code)> init{handler};
+        void(error_code, std::size_t)> init{handler};
     write_some_op<ConstBufferSequence, handler_type<
-        WriteHandler, void(error_code)>>{init.completion_handler,
-            *this, true, bs}({}, 0, false);
+        WriteHandler, void(error_code, std::size_t)>>{
+            init.completion_handler, *this, true, bs}(
+                {}, 0, false);
     return init.result.get();
 }
 

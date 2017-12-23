@@ -10,7 +10,7 @@
 #ifndef BOOST_BEAST_ZLIB_ZLIB_HPP
 #define BOOST_BEAST_ZLIB_ZLIB_HPP
 
-#include <boost/beast/config.hpp>
+#include <boost/beast/core/detail/config.hpp>
 #include <cstdint>
 #include <cstdlib>
 
@@ -47,16 +47,16 @@ namespace beast {
 namespace zlib {
 
 #if !defined(__MACTYPES__)
-typedef unsigned char  Byte;  /* 8 bits */
+using Byte = unsigned char; // 8 bits
 #endif
-typedef unsigned int   uInt;  /* 16 bits or more */
+using uInt = unsigned int;  // 16 bits or more
 
 /* Possible values of the data_type field (though see inflate()) */
-enum z_Type
+enum kind
 {
-    Z_BINARY    = 0,
-    Z_TEXT      = 1,
-    Z_UNKNOWN   = 2
+    binary    = 0,
+    text      = 1,
+    unknown   = 2
 };
 
 /** Deflate codec parameters.
@@ -106,7 +106,7 @@ struct z_params
     */
     std::size_t total_out = 0;
 
-    int data_type = Z_UNKNOWN;  // best guess about the data type: binary or text
+    int data_type = unknown;  // best guess about the data type: binary or text
 };
 
 /** Flush option.
@@ -125,12 +125,12 @@ enum class Flush
 };
 
 /* compression levels */
-enum z_Compression
+enum compression
 {
-    Z_NO_COMPRESSION        =  0,
-    Z_BEST_SPEED            =  1,
-    Z_BEST_COMPRESSION      =  9,
-    Z_DEFAULT_COMPRESSION   = -1
+    none        =  0,
+    best_speed            =  1,
+    best_size      =  9,
+    default_size   = -1
 };
 
 /** Compression strategy.

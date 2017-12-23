@@ -10,7 +10,7 @@
 #ifndef BOOST_BEAST_HTTP_BUFFER_BODY_HPP
 #define BOOST_BEAST_HTTP_BUFFER_BODY_HPP
 
-#include <boost/beast/config.hpp>
+#include <boost/beast/core/detail/config.hpp>
 #include <boost/beast/http/error.hpp>
 #include <boost/beast/http/message.hpp>
 #include <boost/beast/http/type_traits.hpp>
@@ -111,7 +111,7 @@ struct buffer_body
         explicit
         reader(message<isRequest,
                 buffer_body, Fields> const& msg)
-            : body_(msg.body)
+            : body_(msg.body())
         {
         }
 
@@ -169,7 +169,7 @@ struct buffer_body
         template<bool isRequest, class Fields>
         explicit
         writer(message<isRequest, buffer_body, Fields>& m)
-            : body_(m.body)
+            : body_(m.body())
         {
         }
 

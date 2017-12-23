@@ -100,7 +100,7 @@ swap(
     swap(
         static_cast<Fields&>(h1),
         static_cast<Fields&>(h2));
-    swap(h1.version, h2.version);
+    swap(h1.version_, h2.version_);
     swap(h1.method_, h2.method_);
 }
 
@@ -114,18 +114,6 @@ header(Arg1&& arg1, ArgN&&... argn)
         std::forward<ArgN>(argn)...)
 {
 }
-
-#if 0
-template<class Fields>
-template<class... Args>
-header<false, Fields>::
-header(status result, unsigned version_, Args&&... args)
-    : Fields(std::forward<Args>(args)...)
-    , version(version_)
-    , result_(result)
-{
-}
-#endif
 
 template<class Fields>
 inline
@@ -198,7 +186,7 @@ swap(
     swap(
         static_cast<Fields&>(h1),
         static_cast<Fields&>(h2));
-    swap(h1.version, h2.version);
+    swap(h1.version_, h2.version_);
     swap(h1.result_, h2.result_);
 }
 
@@ -209,7 +197,9 @@ template<class... BodyArgs>
 message<isRequest, Body, Fields>::
 message(header_type&& h, BodyArgs&&... body_args)
     : header_type(std::move(h))
-    , body(std::forward<BodyArgs>(body_args)...)
+    , beast::detail::empty_base_optimization<
+        typename Body::value_type>(
+            std::forward<BodyArgs>(body_args)...)
 {
 }
 
@@ -218,7 +208,9 @@ template<class... BodyArgs>
 message<isRequest, Body, Fields>::
 message(header_type const& h, BodyArgs&&... body_args)
     : header_type(h)
-    , body(std::forward<BodyArgs>(body_args)...)
+    , beast::detail::empty_base_optimization<
+        typename Body::value_type>(
+            std::forward<BodyArgs>(body_args)...)
 {
 }
 
@@ -236,7 +228,9 @@ message<isRequest, Body, Fields>::
 message(verb method, string_view target,
         Version version, BodyArg&& body_arg)
     : header_type(method, target, version)
-    , body(std::forward<BodyArg>(body_arg))
+    , beast::detail::empty_base_optimization<
+        typename Body::value_type>(
+            std::forward<BodyArg>(body_arg))
 {
 }
 
@@ -249,7 +243,9 @@ message(
     FieldsArg&& fields_arg)
     : header_type(method, target, version,
         std::forward<FieldsArg>(fields_arg))
-    , body(std::forward<BodyArg>(body_arg))
+    , beast::detail::empty_base_optimization<
+        typename Body::value_type>(
+            std::forward<BodyArg>(body_arg))
 {
 }
 
@@ -267,7 +263,9 @@ message<isRequest, Body, Fields>::
 message(status result, Version version,
     BodyArg&& body_arg)
     : header_type(result, version)
-    , body(std::forward<BodyArg>(body_arg))
+    , beast::detail::empty_base_optimization<
+        typename Body::value_type>(
+            std::forward<BodyArg>(body_arg))
 {
 }
 
@@ -278,7 +276,9 @@ message(status result, Version version,
     BodyArg&& body_arg, FieldsArg&& fields_arg)
     : header_type(result, version,
         std::forward<FieldsArg>(fields_arg))
-    , body(std::forward<BodyArg>(body_arg))
+    , beast::detail::empty_base_optimization<
+        typename Body::value_type>(
+            std::forward<BodyArg>(body_arg))
 {
 }
 
@@ -366,7 +366,7 @@ prepare_payload(std::true_type)
             this->chunked(false);
         }
     }
-    else if(this->version >= 11)
+    else if(this->version() >= 11)
     {
         this->chunked(true);
     }
@@ -409,7 +409,7 @@ swap(
     swap(
         static_cast<header<isRequest, Fields>&>(m1),
         static_cast<header<isRequest, Fields>&>(m2));
-    swap(m1.body, m2.body);
+    swap(m1.body(), m2.body());
 }
 
 } // http

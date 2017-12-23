@@ -10,7 +10,7 @@
 #ifndef BOOST_BEAST_HTTP_IMPL_FIELDS_IPP
 #define BOOST_BEAST_HTTP_IMPL_FIELDS_IPP
 
-#include <boost/beast/core/buffer_cat.hpp>
+#include <boost/beast/core/buffers_cat.hpp>
 #include <boost/beast/core/string.hpp>
 #include <boost/beast/core/static_string.hpp>
 #include <boost/beast/core/detail/buffers_ref.hpp>
@@ -123,8 +123,6 @@ public:
         using value_type =
             typename const_iterator::value_type;
 
-        field_range(field_range const&) = default;
-
         field_range(iter_type first, iter_type last)
             : first_(first)
             , last_(last)
@@ -144,7 +142,7 @@ public:
         }
     };
 
-    using view_type = buffer_cat_view<
+    using view_type = buffers_cat_view<
         boost::asio::const_buffers_1,
         boost::asio::const_buffers_1,
         boost::asio::const_buffers_1,

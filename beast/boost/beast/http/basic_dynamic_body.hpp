@@ -10,7 +10,7 @@
 #ifndef BOOST_BEAST_HTTP_BASIC_DYNAMIC_BODY_HPP
 #define BOOST_BEAST_HTTP_BASIC_DYNAMIC_BODY_HPP
 
-#include <boost/beast/config.hpp>
+#include <boost/beast/core/detail/config.hpp>
 #include <boost/beast/core/type_traits.hpp>
 #include <boost/beast/http/error.hpp>
 #include <boost/beast/http/message.hpp>
@@ -74,7 +74,7 @@ struct basic_dynamic_body
         explicit
         reader(message<isRequest,
                 basic_dynamic_body, Fields> const& m)
-            : body_(m.body)
+            : body_(m.body())
         {
         }
 
@@ -109,7 +109,7 @@ struct basic_dynamic_body
         explicit
         writer(message<isRequest,
                 basic_dynamic_body, Fields>& msg)
-            : body_(msg.body)
+            : body_(msg.body())
         {
         }
 

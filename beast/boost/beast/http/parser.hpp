@@ -10,7 +10,7 @@
 #ifndef BOOST_BEAST_HTTP_PARSER_HPP
 #define BOOST_BEAST_HTTP_PARSER_HPP
 
-#include <boost/beast/config.hpp>
+#include <boost/beast/core/detail/config.hpp>
 #include <boost/beast/http/basic_parser.hpp>
 #include <boost/beast/http/message.hpp>
 #include <boost/beast/http/type_traits.hpp>
@@ -324,7 +324,7 @@ private:
         {
             ec = error::bad_alloc;
         }
-        m_.version = version;
+        m_.version(version);
     }
 
     void
@@ -335,7 +335,7 @@ private:
         error_code& ec)
     {
         m_.result(code);
-        m_.version = version;
+        m_.version(version);
         try
         {
             m_.reason(reason);

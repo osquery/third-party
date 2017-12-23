@@ -7,10 +7,10 @@
 // Official repository: https://github.com/boostorg/beast
 //
 
-#ifndef BOOST_BEAST_CONSUMING_BUFFERS_HPP
-#define BOOST_BEAST_CONSUMING_BUFFERS_HPP
+#ifndef BOOST_BEAST_BUFFERS_SUFFIX_HPP
+#define BOOST_BEAST_BUFFERS_SUFFIX_HPP
 
-#include <boost/beast/config.hpp>
+#include <boost/beast/core/detail/config.hpp>
 #include <boost/beast/core/detail/in_place_init.hpp>
 #include <boost/asio/buffer.hpp>
 #include <boost/optional.hpp>
@@ -35,9 +35,24 @@ namespace beast {
     is still responsible for managing its lifetime.
 
     @tparam BufferSequence The buffer sequence to wrap.
+
+    @par Example
+
+    This function writes the entire contents of a buffer sequence
+    to the specified stream.
+
+    @code
+    template<class SyncWriteStream, class ConstBufferSequence>
+    void send(SyncWriteStream& stream, ConstBufferSequence const& buffers)
+    {
+        buffers_suffix<ConstBufferSequence> bs{buffers};
+        while(boost::asio::buffer_size(bs) > 0)
+            bs.consume(stream.write_some(bs));
+    }
+    @endcode
 */
 template<class BufferSequence>
-class consuming_buffers
+class buffers_suffix
 {
     using buffers_type =
         typename std::decay<BufferSequence>::type;
@@ -50,7 +65,7 @@ class consuming_buffers
     std::size_t skip_ = 0;
 
     template<class Deduced>
-    consuming_buffers(Deduced&& other, std::size_t dist)
+    buffers_suffix(Deduced&& other, std::size_t dist)
         : bs_(std::forward<Deduced>(other).bs_)
         , begin_(std::next(bs_.begin(), dist))
         , skip_(other.skip_)
@@ -86,13 +101,13 @@ public:
 #endif
 
     /// Constructor
-    consuming_buffers();
+    buffers_suffix();
 
     /// Constructor
-    consuming_buffers(consuming_buffers&&);
+    buffers_suffix(buffers_suffix&&);
 
     /// Constructor
-    consuming_buffers(consuming_buffers const&);
+    buffers_suffix(buffers_suffix const&);
 
     /** Constructor
 
@@ -100,7 +115,7 @@ public:
         underlying memory is not transferred or copied.
     */
     explicit
-    consuming_buffers(BufferSequence const& buffers);
+    buffers_suffix(BufferSequence const& buffers);
 
     /** Constructor
 
@@ -110,20 +125,13 @@ public:
         @param args Arguments forwarded to the buffers constructor.
     */
     template<class... Args>
-    consuming_buffers(boost::in_place_init_t, Args&&... args);
+    buffers_suffix(boost::in_place_init_t, Args&&... args);
 
     /// Assignment
-    consuming_buffers& operator=(consuming_buffers&&);
+    buffers_suffix& operator=(buffers_suffix&&);
 
     /// Assignment
-    consuming_buffers& operator=(consuming_buffers const&);
-
-    /// Returns the underlying buffers, without modification
-    BufferSequence const&
-    get() const
-    {
-        return bs_;
-    }
+    buffers_suffix& operator=(buffers_suffix const&);
 
     /// Get a bidirectional iterator to the first element.
     const_iterator
@@ -146,6 +154,6 @@ public:
 } // beast
 } // boost
 
-#include <boost/beast/core/impl/consuming_buffers.ipp>
+#include <boost/beast/core/impl/buffers_suffix.ipp>
 
 #endif

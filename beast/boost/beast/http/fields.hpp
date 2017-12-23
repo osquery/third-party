@@ -10,7 +10,7 @@
 #ifndef BOOST_BEAST_HTTP_FIELDS_HPP
 #define BOOST_BEAST_HTTP_FIELDS_HPP
 
-#include <boost/beast/config.hpp>
+#include <boost/beast/core/detail/config.hpp>
 #include <boost/beast/core/string_param.hpp>
 #include <boost/beast/core/string.hpp>
 #include <boost/beast/core/detail/allocator.hpp>
@@ -373,17 +373,19 @@ public:
     //
     //--------------------------------------------------------------------------
 
-private:
-    // VFALCO But this leaves behind the method, target, and reason!
     /** Remove all fields from the container
 
         All references, pointers, or iterators referring to contained
         elements are invalidated. All past-the-end iterators are also
         invalidated.
+
+        @par Postconditions:
+        @code
+            std::distance(this->begin(), this->end()) == 0
+        @endcode
     */
     void
     clear();
-public:
 
     /** Insert a field.
 

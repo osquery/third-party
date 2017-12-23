@@ -10,9 +10,9 @@
 #ifndef BOOST_BEAST_HTTP_WRITE_HPP
 #define BOOST_BEAST_HTTP_WRITE_HPP
 
-#include <boost/beast/config.hpp>
-#include <boost/beast/core/buffer_cat.hpp>
-#include <boost/beast/core/consuming_buffers.hpp>
+#include <boost/beast/core/detail/config.hpp>
+#include <boost/beast/core/buffers_cat.hpp>
+#include <boost/beast/core/buffers_suffix.hpp>
 #include <boost/beast/core/multi_buffer.hpp>
 #include <boost/beast/http/message.hpp>
 #include <boost/beast/http/serializer.hpp>
@@ -58,6 +58,8 @@ namespace http {
 
     @param sr The serializer to use.
 
+    @return The number of bytes written to the stream.
+
     @throws system_error Thrown on failure.
 
     @see serializer
@@ -65,7 +67,7 @@ namespace http {
 template<
     class SyncWriteStream,
     bool isRequest, class Body, class Fields>
-void
+std::size_t
 write_some(
     SyncWriteStream& stream,
     serializer<isRequest, Body, Fields>& sr);
@@ -100,12 +102,14 @@ write_some(
 
     @param ec Set to indicate what error occurred, if any.
 
+    @return The number of bytes written to the stream.
+
     @see @ref async_write_some, @ref serializer
 */
 template<
     class SyncWriteStream,
     bool isRequest, class Body, class Fields>
-void
+std::size_t
 write_some(
     SyncWriteStream& stream,
     serializer<isRequest, Body, Fields>& sr,
@@ -148,7 +152,8 @@ write_some(
     completes. Copies will be made of the handler as required.
     The equivalent function signature of the handler must be:
     @code void handler(
-        error_code const& error // result of operation
+        error_code const& error,        // result of operation
+        std::size_t bytes_transferred   // the number of bytes written to the stream
     ); @endcode
     Regardless of whether the asynchronous operation completes
     immediately or not, the handler will not be invoked from within
@@ -164,7 +169,9 @@ template<
 #if BOOST_BEAST_DOXYGEN
     void_or_deduced
 #else
-async_return_type<WriteHandler, void(error_code)>
+async_return_type<
+    WriteHandler,
+    void(error_code, std::size_t)>
 #endif
 async_write_some(
     AsyncWriteStream& stream,
@@ -191,6 +198,8 @@ async_write_some(
 
     @param sr The serializer to use.
 
+    @return The number of bytes written to the stream.
+
     @throws system_error Thrown on failure.
 
     @note The implementation will call @ref serializer::split with
@@ -201,7 +210,7 @@ async_write_some(
 template<
     class SyncWriteStream,
     bool isRequest, class Body, class Fields>
-void
+std::size_t
 write_header(
     SyncWriteStream& stream,
     serializer<isRequest, Body, Fields>& sr);
@@ -226,6 +235,8 @@ write_header(
 
     @param ec Set to indicate what error occurred, if any.
 
+    @return The number of bytes written to the stream.
+
     @note The implementation will call @ref serializer::split with
     the value `true` on the serializer passed in.
 
@@ -234,7 +245,7 @@ write_header(
 template<
     class SyncWriteStream,
     bool isRequest, class Body, class Fields>
-void
+std::size_t
 write_header(
     SyncWriteStream& stream,
     serializer<isRequest, Body, Fields>& sr,
@@ -267,7 +278,8 @@ write_header(
     completes. Copies will be made of the handler as required.
     The equivalent function signature of the handler must be:
     @code void handler(
-        error_code const& error // result of operation
+        error_code const& error,        // result of operation
+        std::size_t bytes_transferred   // the number of bytes written to the stream
     ); @endcode
     Regardless of whether the asynchronous operation completes
     immediately or not, the handler will not be invoked from within
@@ -286,7 +298,9 @@ template<
 #if BOOST_BEAST_DOXYGEN
     void_or_deduced
 #else
-async_return_type<WriteHandler, void(error_code)>
+async_return_type<
+    WriteHandler,
+    void(error_code, std::size_t)>
 #endif
 async_write_header(
     AsyncWriteStream& stream,
@@ -313,6 +327,8 @@ async_write_header(
 
     @param sr The serializer to use.
 
+    @return The number of bytes written to the stream.
+
     @throws system_error Thrown on failure.
 
     @see @ref serializer
@@ -320,7 +336,7 @@ async_write_header(
 template<
     class SyncWriteStream,
     bool isRequest, class Body, class Fields>
-void
+std::size_t
 write(
     SyncWriteStream& stream,
     serializer<isRequest, Body, Fields>& sr);
@@ -345,12 +361,14 @@ write(
 
     @param ec Set to the error, if any occurred.
 
+    @return The number of bytes written to the stream.
+
     @see @ref serializer
 */
 template<
     class SyncWriteStream,
     bool isRequest, class Body, class Fields>
-void
+std::size_t
 write(
     SyncWriteStream& stream,
     serializer<isRequest, Body, Fields>& sr,
@@ -383,7 +401,8 @@ write(
     completes. Copies will be made of the handler as required.
     The equivalent function signature of the handler must be:
     @code void handler(
-        error_code const& error // result of operation
+        error_code const& error,        // result of operation
+        std::size_t bytes_transferred   // the number of bytes written to the stream
     ); @endcode
     Regardless of whether the asynchronous operation completes
     immediately or not, the handler will not be invoked from within
@@ -399,7 +418,9 @@ template<
 #if BOOST_BEAST_DOXYGEN
     void_or_deduced
 #else
-async_return_type<WriteHandler, void(error_code)>
+async_return_type<
+    WriteHandler,
+    void(error_code, std::size_t)>
 #endif
 async_write(
     AsyncWriteStream& stream,
@@ -419,14 +440,14 @@ async_write(
 
     This operation is implemented in terms of one or more calls to the stream's
     `write_some` function. The algorithm will use a temporary @ref serializer
-    with an empty chunk decorator to produce buffers. If the semantics of the
-    message indicate that the connection should be closed after the message is
-    sent, the error delivered by this function will be @ref error::end_of_stream
+    with an empty chunk decorator to produce buffers.
 
     @param stream The stream to which the data is to be written.
     The type must support the @b SyncWriteStream concept.
 
     @param msg The message to write.
+
+    @return The number of bytes written to the stream.
 
     @throws system_error Thrown on failure.
 
@@ -435,7 +456,7 @@ async_write(
 template<
     class SyncWriteStream,
     bool isRequest, class Body, class Fields>
-void
+std::size_t
 write(
     SyncWriteStream& stream,
     message<isRequest, Body, Fields> const& msg);
@@ -451,9 +472,7 @@ write(
 
     This operation is implemented in terms of one or more calls to the stream's
     `write_some` function. The algorithm will use a temporary @ref serializer
-    with an empty chunk decorator to produce buffers. If the semantics of the
-    message indicate that the connection should be closed after the message is
-    sent, the error delivered by this function will be @ref error::end_of_stream
+    with an empty chunk decorator to produce buffers.
 
     @param stream The stream to which the data is to be written.
     The type must support the @b SyncWriteStream concept.
@@ -462,12 +481,14 @@ write(
 
     @param ec Set to the error, if any occurred.
 
+    @return The number of bytes written to the stream.
+
     @see @ref message
 */
 template<
     class SyncWriteStream,
     bool isRequest, class Body, class Fields>
-void
+std::size_t
 write(
     SyncWriteStream& stream,
     message<isRequest, Body, Fields> const& msg,
@@ -487,10 +508,7 @@ write(
     `async_write_some` function, and is known as a <em>composed operation</em>.
     The program must ensure that the stream performs no other write operations
     until this operation completes. The algorithm will use a temporary
-    @ref serializer with an empty chunk decorator to produce buffers. If
-    the semantics of the message indicate that the connection should be
-    closed after the message is sent, the error delivered by this function
-    will be @ref error::end_of_stream
+    @ref serializer with an empty chunk decorator to produce buffers.
 
     @param stream The stream to which the data is to be written.
     The type must support the @b AsyncWriteStream concept.
@@ -503,7 +521,8 @@ write(
     completes. Copies will be made of the handler as required.
     The equivalent function signature of the handler must be:
     @code void handler(
-        error_code const& error // result of operation
+        error_code const& error,        // result of operation
+        std::size_t bytes_transferred   // the number of bytes written to the stream
     ); @endcode
     Regardless of whether the asynchronous operation completes
     immediately or not, the handler will not be invoked from within
@@ -516,7 +535,9 @@ template<
     class AsyncWriteStream,
     bool isRequest, class Body, class Fields,
     class WriteHandler>
-async_return_type<WriteHandler, void(error_code)>
+async_return_type<
+    WriteHandler,
+    void(error_code, std::size_t)>
 async_write(
     AsyncWriteStream& stream,
     message<isRequest, Body, Fields>& msg,

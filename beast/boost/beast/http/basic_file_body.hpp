@@ -10,7 +10,7 @@
 #ifndef BOOST_BEAST_HTTP_BASIC_FILE_BODY_HPP
 #define BOOST_BEAST_HTTP_BASIC_FILE_BODY_HPP
 
-#include <boost/beast/config.hpp>
+#include <boost/beast/core/detail/config.hpp>
 #include <boost/beast/core/error.hpp>
 #include <boost/beast/core/file_base.hpp>
 #include <boost/beast/core/type_traits.hpp>
@@ -291,7 +291,7 @@ template<bool isRequest, class Fields>
 basic_file_body<File>::
 reader::
 reader(message<isRequest, basic_file_body, Fields>& m)
-    : body_(m.body)
+    : body_(m.body())
 {
     // The file must already be open
     BOOST_ASSERT(body_.file_.is_open());
@@ -442,7 +442,7 @@ template<bool isRequest, class Fields>
 basic_file_body<File>::
 writer::
 writer(message<isRequest, basic_file_body, Fields>& m)
-    : body_(m.body)
+    : body_(m.body())
 {
 }
 

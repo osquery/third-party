@@ -10,7 +10,7 @@
 #ifndef BOOST_BEAST_HTTP_SPAN_BODY_HPP
 #define BOOST_BEAST_HTTP_SPAN_BODY_HPP
 
-#include <boost/beast/config.hpp>
+#include <boost/beast/core/detail/config.hpp>
 #include <boost/beast/core/span.hpp>
 #include <boost/beast/http/error.hpp>
 #include <boost/beast/http/message.hpp>
@@ -78,7 +78,7 @@ public:
         explicit
         reader(message<isRequest,
                 span_body, Fields> const& msg)
-            : body_(msg.body)
+            : body_(msg.body())
         {
         }
 
@@ -117,7 +117,7 @@ public:
         explicit
         writer(message<isRequest,
                 span_body, Fields>& m)
-            : body_(m.body)
+            : body_(m.body())
         {
         }
 
